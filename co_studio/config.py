@@ -43,7 +43,7 @@ KEYS_ENV = MAIN_CO_DIR / "keys.env"
 PACKAGE_DIR = Path(__file__).resolve().parent
 RUNNER_PATH = PACKAGE_DIR / "runner" / "co_studio_runner.py"
 TEMPLATE_PATH = PACKAGE_DIR / "templates" / "agent.py.tmpl"
-FRONTEND_DIR = PACKAGE_DIR.parent / "frontend"
+FRONTEND_DIR = PACKAGE_DIR / "frontend"  # bundled inside the package so it ships in the wheel
 
 STDOUT_LOG_NAME = "studio-stdout.log"
 PIDFILE_NAME = "studio.pid"

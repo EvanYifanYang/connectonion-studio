@@ -14,19 +14,27 @@ def _patch_get_ips() -> None:
     if getattr(_announce.get_ips, "_co_studio_patched", False):
         return
 
+    # VPN / VM / container / bridge adapters to skip, across macOS, Windows and Linux.
+    skip = ("utun", "awdl", "llw", "bridge", "vmnet", "vnic", "vbox", "tap", "tun",  # macOS
+            "vethernet", "hyper-v", "vmware", "virtualbox", "loopback", "npcap", "wsl",  # Windows
+            "veth", "docker", "br-", "virbr")  # Linux
+    prefer = ("en0", "en1", "eth", "wlan", "wi-fi", "wifi", "ethernet")  # physical-looking NICs
+
     def _get_ips() -> list[str]:
         preferred: list[str] = []
         rest: list[str] = []
         for adapter in ifaddr.get_adapters():
-            nic = str(adapter.name)
-            if any(bad in nic for bad in ("utun", "awdl", "llw", "bridge", "vmnet", "vnic", "vbox", "tap", "tun")):
-                continue  # VPN / VM / AirDrop adapters
+            # On Windows adapter.name is a GUID and nice_name the friendly label; check both.
+            label = f"{getattr(adapter, 'nice_name', '') or ''} {adapter.name}".lower()
+            if any(bad in label for bad in skip):
+                continue  # VPN / VM / AirDrop / container adapters
+            is_preferred = any(good in label for good in prefer)
             for ip in adapter.ips:
                 if not isinstance(ip.ip, str):
                     continue  # IPv6 arrives as a tuple — IPv4 only
                 if ip.ip.startswith("127.") or ip.ip.startswith("169.254."):
                     continue  # loopback dupe / link-local junk
-                (preferred if nic in ("en0", "en1") else rest).append(ip.ip)
+                (preferred if is_preferred else rest).append(ip.ip)
         seen: set[str] = set()
         ips = [ip for ip in ["localhost", *preferred, *rest] if not (ip in seen or seen.add(ip))][:4]
         print(f"[co-studio] announce ips={','.join(ips)} endpoints={2 * len(ips)}", flush=True)

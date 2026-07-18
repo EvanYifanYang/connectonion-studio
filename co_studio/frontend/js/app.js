@@ -6,7 +6,7 @@
 // ============================================================
 
 import * as api from './api.js';
-import { statusSocket, logSocket } from './ws.js';
+import { statusSocket } from './ws.js';
 import { createOnion, playSplash } from './onion.js';
 import { copyForClaude, copyText, copyWithFeedback } from './diagnostics.js';
 
@@ -19,7 +19,6 @@ const state = {
   busy: new Set(),           // slugs with an action in flight
   drawerSlug: null,
   drawerDetail: null,
-  logSock: null,
   statusSock: null,
   onboardingTimer: null,
   onboardingActive: false,
@@ -922,29 +921,69 @@ function infoRow(label, valueNode) {
 
 function copyableValue(text) {
   const wrap = document.createElement('span');
-  wrap.style.display = 'inline-flex';
-  wrap.style.alignItems = 'center';
-  wrap.style.gap = '4px';
-  wrap.style.minWidth = '0';
+  wrap.style.cssText = 'display:inline-flex; align-items:center; gap:4px; min-width:0;';
   const code = document.createElement('code');
-  code.textContent = text;
+  // truncate the FRONT (…), keep the tail (filename) visible: direction:rtl puts the ellipsis on
+  // the left; a leading LRM keeps the path's own "/" characters in LTR order (no stray trailing "/").
+  code.textContent = '‎' + text;
+  code.style.cssText = 'min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; direction:rtl; text-align:left;';
   const btn = document.createElement('button');
-  btn.className = 'icon-btn';
+  btn.className = 'row-copy';
   btn.title = 'Copy';
   btn.setAttribute('aria-label', 'Copy');
-  btn.innerHTML = '⧉';
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    copyWithFeedback(btn, text);
-  });
+  btn.innerHTML = ICON.copy;
+  btn.addEventListener('click', (e) => { e.stopPropagation(); copyWithFeedback(btn, text); });
   wrap.append(code, btn);
   return wrap;
 }
 
+function statusValue(stateStr) {
+  const v = document.createElement('span');
+  const dot = document.createElement('span');
+  dot.className = 'd-dot';
+  const word = document.createElement('span');
+  word.textContent = capitalize(stateStr);
+  if (stateStr === 'online') { dot.style.background = 'var(--ok)'; v.style.color = 'var(--ok)'; }
+  else if (stateStr === 'crashed') { dot.style.background = 'var(--danger)'; v.style.color = 'var(--danger)'; }
+  v.append(dot, word);
+  return v;
+}
+function idValue(address) {
+  const v = document.createElement('span');
+  const code = document.createElement('code');
+  code.textContent = shortAddr(address);
+  const btn = document.createElement('button');
+  btn.className = 'row-copy';
+  btn.title = 'Copy ID';
+  btn.setAttribute('aria-label', 'Copy ID');
+  btn.innerHTML = ICON.copy;
+  btn.addEventListener('click', (e) => { e.stopPropagation(); copyWithFeedback(btn, address); });
+  v.append(code, btn);
+  return v;
+}
+function setRow(label, value) {
+  const row = document.createElement('div');
+  row.className = 'set-row';
+  const k = document.createElement('span'); k.className = 'k'; k.textContent = label;
+  const v = document.createElement('span'); v.className = 'v';
+  if (value == null || value === '') v.textContent = '—';
+  else if (typeof value === 'string') v.textContent = value;
+  else v.appendChild(value);
+  row.append(k, v);
+  return row;
+}
+function detailGroup(title, rows) {
+  const g = document.createElement('div');
+  g.className = 'detail-group';
+  const h = document.createElement('h3'); h.textContent = title;
+  g.appendChild(h);
+  for (const [label, value] of rows) g.appendChild(setRow(label, value));
+  return g;
+}
 function renderDrawerFields(detail) {
   $('#d-name').textContent = detail.name;
   const badge = $('#d-state');
-  badge.textContent = detail.state;
+  badge.textContent = capitalize(detail.state);
   badge.dataset.state = detail.state;
 
   $('#d-qr').src = api.qrUrl(detail.slug);
@@ -952,35 +991,36 @@ function renderDrawerFields(detail) {
 
   const info = $('#d-info');
   info.textContent = '';
-  info.appendChild(infoRow('Model', detail.model));
-  info.appendChild(infoRow('Port', String(detail.port)));
-  info.appendChild(infoRow('Toolkits', (detail.toolkits || []).join(', ') || '—'));
-  info.appendChild(infoRow(
-    'Relay',
-    detail.relay_ok === true ? 'connected' : detail.relay_ok === false ? 'not connected' : '—',
-  ));
-  info.appendChild(infoRow(
-    'Endpoints',
-    detail.endpoints_announced == null ? '—' : `${detail.endpoints_announced} announced`,
-  ));
-  if (detail.script_path) info.appendChild(infoRow('Script', copyableValue(detail.script_path)));
-  if (detail.co_dir) info.appendChild(infoRow('co_dir', copyableValue(detail.co_dir)));
-  info.appendChild(infoRow('Created', detail.created_at || '—'));
+  info.appendChild(detailGroup('Configuration', [
+    ['Model', detail.model],
+    ['Port', String(detail.port)],
+    ['Toolkits', (detail.toolkits || []).join(' · ') || '—'],
+    ['Access', capitalize(detail.trust || 'open')],
+  ]));
+  info.appendChild(detailGroup('Runtime', [
+    ['Status', statusValue(detail.state)],
+    ['Relay', detail.relay_ok === true ? 'connected' : detail.relay_ok === false ? 'not connected' : '—'],
+    ['Endpoints', detail.endpoints_announced == null ? '—' : `${detail.endpoints_announced} announced`],
+  ]));
+  const paths = [];
+  if (detail.script_path) paths.push(['Script', copyableValue(detail.script_path)]);
+  if (detail.co_dir) paths.push(['co_dir', copyableValue(detail.co_dir)]);
+  if (paths.length) info.appendChild(detailGroup('Paths', paths));
+  info.appendChild(detailGroup('Identity', [
+    ['ID', idValue(detail.address)],
+    ['Created', detail.created_at || '—'],
+  ]));
 
   const errBox = $('#d-last-error');
-  if (detail.last_error) {
-    errBox.textContent = detail.last_error;
-    errBox.hidden = false;
-  } else {
-    errBox.hidden = true;
-  }
+  if (detail.last_error) { errBox.textContent = detail.last_error; errBox.hidden = false; }
+  else errBox.hidden = true;
 
   syncDrawerButtons();
 }
 
 function syncDrawerButtons() {
   const detail = state.drawerDetail;
-  if (!detail || $('#drawer').hidden) return;
+  if (!detail || !$('#app').classList.contains('is-detail')) return;
   const summary = state.agents.find((a) => a.slug === detail.slug);
   const stateNow = summary ? summary.state : detail.state;
   const busy = state.busy.has(detail.slug);
@@ -988,60 +1028,22 @@ function syncDrawerButtons() {
   const toggle = $('#d-toggle');
   toggle.classList.remove('btn-primary', 'btn-danger-solid');   // Start=violet, Stop=red, both solid
   if (stateNow === 'starting' || stateNow === 'creating') {
-    toggle.textContent = 'Starting…';
+    toggle.innerHTML = '<span>Starting…</span>';
     toggle.disabled = true;
   } else if (stateNow === 'online') {
-    toggle.textContent = 'Stop';
+    toggle.innerHTML = `${ICON.stop}<span>Stop</span>`;
     toggle.classList.add('btn-danger-solid');
     toggle.disabled = busy;
   } else {
-    toggle.textContent = 'Start';
+    toggle.innerHTML = `${ICON.play}<span>Start</span>`;
     toggle.classList.add('btn-primary');
     toggle.disabled = busy;
   }
   $('#d-restart').disabled = busy || stateNow === 'creating';
 
   const badge = $('#d-state');
-  badge.textContent = stateNow;
+  badge.textContent = capitalize(stateNow);
   badge.dataset.state = stateNow;
-}
-
-// -- live logs --
-const ERROR_LINE_RE = /\b(error|traceback|exception|failed|failure|fatal|critical|panic|unhandled)\b|\bERR\b|\[error\]|429/i;
-let inTraceback = false;
-
-function appendLogLine({ source, line }) {
-  const pane = $('#d-log-pane');
-  const placeholder = pane.querySelector('.log-empty');
-  if (placeholder) placeholder.remove();
-
-  if (/^Traceback \(most recent call last\)/.test(line)) inTraceback = true;
-  else if (inTraceback && line && !/^\s/.test(line) && !ERROR_LINE_RE.test(line)) {
-    // final "SomethingError: …" line of a traceback keeps the flag for one line
-    inTraceback = /^[A-Za-z_.]+(Error|Exception|Warning)\b/.test(line);
-  }
-  const isError = ERROR_LINE_RE.test(line) || inTraceback;
-
-  const el = document.createElement('div');
-  el.className = 'log-line'
-    + (isError ? ' log-error' : '')
-    + (source === 'logger' ? ' log-logger' : '');
-  el.textContent = line;
-
-  const stick = pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 12;
-  pane.appendChild(el);
-  while (pane.childElementCount > 1000) pane.firstElementChild.remove();
-  if (stick) pane.scrollTop = pane.scrollHeight;
-}
-
-function resetLogPane(message = 'waiting for log lines…') {
-  const pane = $('#d-log-pane');
-  pane.textContent = '';
-  inTraceback = false;
-  const empty = document.createElement('div');
-  empty.className = 'log-empty';
-  empty.textContent = message;
-  pane.appendChild(empty);
 }
 
 async function refreshDrawerDetail() {
@@ -1055,21 +1057,11 @@ async function refreshDrawerDetail() {
 }
 
 async function openDrawer(slug, prefetched = null) {
-  closeDrawerSocket();
   state.drawerSlug = slug;
   state.drawerDetail = null;
-
-  const drawer = $('#drawer');
-  const backdrop = $('#drawer-backdrop');
-  drawer.hidden = false;
-  backdrop.hidden = false;
-  requestAnimationFrame(() => {
-    drawer.classList.add('open');
-    backdrop.classList.add('open');
-  });
-
+  closeAllCardMenus();
   $('#d-name').textContent = '…';
-  resetLogPane('connecting…');
+  $('#app').classList.add('is-detail');          // swap the detail in over the card
 
   const detail = prefetched || await api.getAgent(slug).catch((err) => {
     toast(`Load failed: ${err.message}`, 'danger');
@@ -1078,53 +1070,36 @@ async function openDrawer(slug, prefetched = null) {
   if (!detail || state.drawerSlug !== slug) return;
   state.drawerDetail = detail;
   renderDrawerFields(detail);
-
-  resetLogPane();
-  const conn = $('#d-log-conn');
-  state.logSock = logSocket(
-    slug,
-    appendLogLine,
-    (live) => {
-      conn.textContent = live ? 'live' : 'reconnecting…';
-      conn.classList.toggle('live', live);
-    },
-  );
-}
-
-function closeDrawerSocket() {
-  if (state.logSock) {
-    state.logSock.close();
-    state.logSock = null;
-  }
 }
 
 function closeDrawer() {
-  closeDrawerSocket();
   state.drawerSlug = null;
   state.drawerDetail = null;
-  const drawer = $('#drawer');
-  const backdrop = $('#drawer-backdrop');
-  drawer.classList.remove('open');
-  backdrop.classList.remove('open');
-  setTimeout(() => {
-    drawer.hidden = true;
-    backdrop.hidden = true;
-  }, 300);
+  $('#app').classList.remove('is-detail');
   resetDeleteButton();
 }
 
 function resetDeleteButton() {
   const btn = $('#d-delete');
-  btn.textContent = 'Delete';
-  btn.classList.remove('btn-danger-solid');
-  btn.classList.add('btn-danger-ghost');
+  const label = $('span', btn);
+  if (label) label.textContent = 'Delete Agent';   // keep the trash icon; only swap the label
+  btn.classList.remove('btn-danger-solid');         // .detail-delete is the default outlined state
   clearTimeout(btn._confirmTimer);
   delete btn.dataset.confirming;
 }
 
 function initDrawer() {
+  $('#app').appendChild($('#detail-view'));   // relocate the detail overlay inside the card
+  $('#detail-view').hidden = false;           // CSS visibility/opacity drives it now
   $('#d-close').addEventListener('click', closeDrawer);
-  $('#drawer-backdrop').addEventListener('click', closeDrawer);
+
+  // click blank space (not the panel, not a card) collapses the detail
+  document.addEventListener('click', (e) => {
+    if (!$('#app').classList.contains('is-detail')) return;
+    if (e.target.closest('.detail-panel')) return;   // clicks inside the panel keep it open
+    if (e.target.closest('.agent-card')) return;      // let cards open / switch the detail
+    closeDrawer();
+  });
 
   $('#d-copy-addr').addEventListener('click', (e) => {
     if (state.drawerDetail) copyWithFeedback(e.currentTarget, state.drawerDetail.address);
@@ -1150,7 +1125,7 @@ function initDrawer() {
     if (!state.drawerSlug) return;
     if (!btn.dataset.confirming) {
       btn.dataset.confirming = '1';
-      btn.textContent = 'Delete permanently?';
+      $('span', btn).textContent = 'Delete permanently?';
       btn.classList.remove('btn-danger-ghost');
       btn.classList.add('btn-danger-solid');
       btn._confirmTimer = setTimeout(resetDeleteButton, 4000);
@@ -1346,7 +1321,7 @@ async function boot() {
     if ($('#app').classList.contains('is-settings')) closeSettingsModal();
     else if (!$('#modal-qr').hidden) $('#modal-qr').hidden = true;
     else if ($('#app').classList.contains('is-creating')) closeCreateModal();
-    else if (!$('#drawer').hidden) closeDrawer();
+    else if ($('#app').classList.contains('is-detail')) closeDrawer();
   });
 
   const splashDone = playSplash($('#splash'));

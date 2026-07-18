@@ -10,6 +10,8 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
+from contextlib import suppress
 from pathlib import Path
 
 from . import config, registry
@@ -23,17 +25,38 @@ def current() -> str:
     return str(config.AGENTS_DIR)
 
 
-def pick_folder() -> str | None:
-    """Pop the native macOS folder chooser; return the POSIX path (None if cancelled).
+def _picker_command() -> list[str] | None:
+    """The native "choose folder" command for this OS, or None if none is available.
 
-    Runs on the user's own machine (the studio is loopback-only), so the OS dialog
-    is theirs — no path is ever typed or exposed to the browser.
+    Runs on the user's own machine (the studio is loopback-only), so the OS dialog is
+    theirs — no path is ever typed or exposed to the browser. When None (e.g. headless
+    Linux without zenity), the UI still has its typed-path field, so the feature stays
+    usable everywhere.
     """
-    script = 'POSIX path of (choose folder with prompt "Choose a folder for your agents")'
-    try:
-        done = subprocess.run(
-            ["osascript", "-e", script], capture_output=True, text=True, timeout=180
+    if sys.platform == "darwin":
+        return ["osascript", "-e",
+                'POSIX path of (choose folder with prompt "Choose a folder for your agents")']
+    if os.name == "nt":
+        ps = (
+            "Add-Type -AssemblyName System.Windows.Forms;"
+            "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
+            "$d.Description = 'Choose a folder for your agents';"
+            "if ($d.ShowDialog() -eq 'OK') { [Console]::Out.Write($d.SelectedPath) }"
         )
+        return ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps]
+    if shutil.which("zenity"):  # most Linux desktops
+        return ["zenity", "--file-selection", "--directory",
+                "--title=Choose a folder for your agents"]
+    return None
+
+
+def pick_folder() -> str | None:
+    """Pop the native folder chooser for this OS; return the path (None if cancelled/unavailable)."""
+    command = _picker_command()
+    if command is None:
+        return None
+    try:
+        done = subprocess.run(command, capture_output=True, text=True, timeout=180)
     except (OSError, subprocess.SubprocessError):
         return None
     path = done.stdout.strip()
@@ -68,7 +91,7 @@ async def change(new_raw: str) -> dict:
         raise ValueError(f"That folder isn't writable: {new}")
 
     metas = registry.load_all()
-    for meta in metas:  # never overwrite an existing folder at the destination
+    for meta in metas:  # fast pre-check before we stop anything (authoritative check is below)
         if (new / meta.slug).exists():
             raise ValueError(f"'{meta.slug}' already exists at the new location.")
 
@@ -77,14 +100,26 @@ async def change(new_raw: str) -> dict:
         if SUPERVISOR.state_of(meta.slug) in _RUNNING:
             await SUPERVISOR.stop(meta.slug)
 
-    moved = 0
-    if old.is_dir():
-        for meta in metas:
-            src = old / meta.slug
-            if src.is_dir():
-                shutil.move(str(src), str(new / meta.slug))
-                moved += 1
+    # Serialise the move + switch against create/save/port-allocation (all of which take
+    # this lock), and enumerate the LIVE folders — not a stale meta snapshot — so an agent
+    # created during the stop phase, or one with a corrupt meta.json, is never stranded.
+    with registry.locked():
+        folders = [p for p in sorted(old.iterdir()) if p.is_dir()] if old.is_dir() else []
+        for src in folders:  # never overwrite an existing folder at the destination
+            if (new / src.name).exists():
+                raise ValueError(f"'{src.name}' already exists at the new location.")
 
-    config.save_agents_dir(new)
-    config.AGENTS_DIR = new
-    return {"agents_dir": str(new), "moved": moved}
+        done: list[str] = []
+        try:
+            for src in folders:
+                shutil.move(str(src), str(new / src.name))
+                done.append(src.name)
+        except OSError as exc:  # roll back partial moves so a failed change() is a no-op
+            for name in reversed(done):
+                with suppress(OSError):
+                    shutil.move(str(new / name), str(old / name))
+            raise ValueError(f"Migration failed and was rolled back: {exc}") from exc
+
+        config.save_agents_dir(new)
+        config.AGENTS_DIR = new
+    return {"agents_dir": str(new), "moved": len(folders)}

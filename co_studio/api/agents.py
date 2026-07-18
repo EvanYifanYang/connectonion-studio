@@ -91,7 +91,8 @@ class RenameBody(BaseModel):
 
 @router.post("/{slug}/rename")
 def rename_agent(slug: str, body: RenameBody) -> dict[str, object]:
-    """Change an agent's display name only (keeps its slug, identity, and folder)."""
+    """Rename an agent: update meta.json AND re-render agent.py so the name it advertises
+    matches (keeps its slug, identity, port, and folder). Restart to apply to a live process."""
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="name must not be blank")
@@ -99,6 +100,10 @@ def rename_agent(slug: str, body: RenameBody) -> dict[str, object]:
         meta = _get_meta(slug)
         meta.name = name
         registry.save(meta)
+        agent_dir = registry.agent_dir(slug)
+        (agent_dir / "agent.py").write_text(
+            creator.render(name, meta.model, meta.port, meta.toolkits, meta.trust)
+        )
     return summarize(meta)
 
 

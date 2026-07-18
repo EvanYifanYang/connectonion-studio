@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import dataclasses
-import fcntl
 import json
+import os
 import shutil
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
+
+from filelock import FileLock
 
 from . import config
 
@@ -37,14 +39,16 @@ def ensure_dirs() -> None:
 
 @contextmanager
 def locked() -> Iterator[None]:
-    """Exclusive fcntl lock serialising registry mutations across processes."""
+    """Exclusive cross-platform lock serialising registry mutations across threads/processes.
+
+    filelock uses fcntl.flock on POSIX (same primitive as before) and msvcrt on Windows,
+    so this works identically on macOS/Linux and no longer crashes on `import fcntl`.
+    A fresh FileLock per call gives plain mutual exclusion (no reentrancy), matching the
+    old flock behaviour; the default timeout=-1 blocks until the lock is free.
+    """
     ensure_dirs()
-    with open(config.INDEX_LOCK, "w") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+    with FileLock(str(config.INDEX_LOCK)):
+        yield
 
 
 def agent_dir(slug: str) -> Path:
@@ -53,9 +57,11 @@ def agent_dir(slug: str) -> Path:
 
 
 def save(meta: AgentMeta) -> None:
-    """Write meta.json for an agent (its directory must already exist)."""
+    """Write meta.json atomically (temp file + rename) so a crash never leaves it half-written."""
     path = agent_dir(meta.slug) / "meta.json"
-    path.write_text(json.dumps(dataclasses.asdict(meta), indent=2) + "\n")
+    tmp = path.with_name("meta.json.tmp")
+    tmp.write_text(json.dumps(dataclasses.asdict(meta), indent=2) + "\n")
+    os.replace(tmp, path)
 
 
 def load(slug: str) -> AgentMeta | None:
