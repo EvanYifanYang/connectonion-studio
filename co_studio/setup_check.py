@@ -96,5 +96,8 @@ def status() -> dict[str, Any]:
         "framework_ok": all(ok_by_check.get(check, False) for check in _FRAMEWORK_CHECKS),
         "studio_version": _studio_version(),
         "agents_dir": str(config.AGENTS_DIR),
+        # Read at request time so it reflects the REAL bound port (e.g. a --free-port desktop launch),
+        # letting the settings UI render the manager URL instead of the hardcoded 9900.
+        "manager_url": f"http://{config.STUDIO_HOST}:{config.STUDIO_PORT}",
         "doctor": doctor,
     }

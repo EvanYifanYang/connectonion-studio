@@ -459,6 +459,9 @@ function updateFleetHeader() {
   }
   const fleet = $('#fleet');
   if (fleet) fleet.textContent = total ? `${online} online · ${total} total` : '';
+  // Warn that quitting leaves agents alive only when at least one has a live process (survives quit).
+  const note = $('#persist-note');
+  if (note) note.hidden = !state.agents.some((a) => ['online', 'starting', 'offline'].includes(a.state));
 }
 
 function renderSideHealth(setup) {
@@ -541,6 +544,8 @@ function renderSettings(setup) {
   if (auth) { auth.innerHTML = setup?.co_auth_ok ? 'authenticated <span class="ok-check">✓</span>' : 'run `co auth`'; auth.className = `v ${setup?.co_auth_ok ? 'ok' : 'bad'}`; }
   const key = $('#set-key');
   if (key) { key.innerHTML = setup?.key_ok ? 'present <span class="ok-check">✓</span>' : 'missing'; key.className = `v ${setup?.key_ok ? 'ok' : 'bad'}`; }
+  const url = $('#set-url');
+  if (url) url.textContent = setup?.manager_url || 'http://127.0.0.1:9900';
   const ver = $('#set-ver');
   if (ver) ver.textContent = setup?.studio_version ? `v${setup.studio_version}` : '—';
   const store = $('#set-storage');
@@ -1102,10 +1107,14 @@ function initDrawer() {
   });
 
   $('#d-copy-addr').addEventListener('click', (e) => {
+    // The copy feedback swaps this button's content, detaching the clicked node — so the doc-level
+    // close-handler's `e.target.closest('.detail-panel')` guard would miss and collapse the drawer.
+    e.stopPropagation();
     if (state.drawerDetail) copyWithFeedback(e.currentTarget, state.drawerDetail.address);
   });
 
   $('#d-copy-claude').addEventListener('click', (e) => {
+    e.stopPropagation();   // same content-swap → don't let it bubble to the close-handler
     if (state.drawerSlug) copyForClaude(state.drawerSlug, e.currentTarget);
   });
 
@@ -1119,7 +1128,7 @@ function initDrawer() {
     if (state.drawerSlug) doAction(state.drawerSlug, 'restart');
   });
 
-  // two-step delete: moves to ~/.co-studio/trash, never a hard delete
+  // two-step confirm, then a PERMANENT delete (rmtree — identity/keys/logs, unrecoverable)
   $('#d-delete').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     if (!state.drawerSlug) return;
@@ -1263,6 +1272,9 @@ function stopGateTyper() {
 }
 
 function checkViewport() {
+  // Native shell (?desktop=1) fills the window fluidly and has no minimum size —
+  // never gate it (the gate's MIN_W/MIN_H are for the fixed 1120×760 web card).
+  if (document.documentElement.classList.contains('desktop')) return;
   const small = window.innerWidth < MIN_W || window.innerHeight < MIN_H;
   if (small && !gateBuilt) {
     $('#gate-onion').appendChild(createOnion({ size: 104, mode: 'assemble', label: 'ConnectOnion' }));

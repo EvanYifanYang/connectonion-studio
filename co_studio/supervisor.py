@@ -7,7 +7,6 @@ import json
 import os
 import signal
 import subprocess
-import sys
 import time
 import urllib.request
 from contextlib import suppress
@@ -118,10 +117,15 @@ class Supervisor:
                     meta.port = ports.allocate(reserved)
                     registry.save(meta)
             agent_dir = registry.agent_dir(meta.slug)
+            # Reuse (not a new name) so this override MASKS any CO_STUDIO_PORT the user exported for the
+            # studio's own port — each agent always gets its own port here, never the studio's.
             env = {**os.environ, "CO_STUDIO_PORT": str(meta.port)}
             with open(agent_dir / config.STDOUT_LOG_NAME, "ab") as stdout:
                 popen = subprocess.Popen(  # noqa: S603 — our own generated script
-                    [sys.executable, str(config.RUNNER_PATH), str(agent_dir / "agent.py")],
+                    # config.agent_python() == sys.executable everywhere except a frozen build; under
+                    # the bundled relocatable interpreter it IS the embedded python, so agents spawn
+                    # against a real interpreter that can import connectonion — no re-exec needed.
+                    [config.agent_python(), str(config.RUNNER_PATH), str(agent_dir / "agent.py")],
                     cwd=agent_dir,  # framework logs/sessions are cwd-relative
                     env=env,
                     stdout=stdout,

@@ -15,6 +15,15 @@ venv/
 *.log
 .co-studio/
 
+# ── Xcode / Swift (macOS app under macos/) ──
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+.swiftpm/
+*.moved-aside
+
 # ── 内部设计 & 开发思考文档：只留本地，永不发布 ──
 docs/
 DESIGN.md

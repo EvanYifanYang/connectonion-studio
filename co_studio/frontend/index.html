@@ -13,6 +13,16 @@
   <link rel="stylesheet" href="/css/theme.css">
   <link rel="stylesheet" href="/css/onion.css">
   <link rel="stylesheet" href="/css/app.css">
+  <script>
+    // Native-shell mode: the macOS app loads this page as `…/?desktop=1`.
+    // Flip `html.desktop` SYNCHRONOUSLY here (parser-blocking, before first paint)
+    // so the full-window layout + traffic-light inset apply with no flash of the
+    // floating-card web layout. Presentation only — REST stays relative and the WS
+    // still derives from location.host, so a plain browser (no ?desktop) is untouched.
+    if (new URLSearchParams(location.search).has('desktop')) {
+      document.documentElement.classList.add('desktop');
+    }
+  </script>
 </head>
 <body>
 
@@ -116,6 +126,7 @@
       <main>
         <section id="view-list">
           <div id="agent-grid" class="agent-grid"></div>
+          <p id="persist-note" class="persist-note" hidden>Agents keep running after you close <span class="pn-brand">Studio</span> — use <span class="pn-strong">Stop</span> to end one.</p>
         </section>
       </main>
     </div>
@@ -274,7 +285,7 @@
         </div>
         <div class="settings-group">
           <h3>Manager</h3>
-          <div class="set-row"><span class="k">URL</span><span class="v mono">http://127.0.0.1:9900</span></div>
+          <div class="set-row"><span class="k">URL</span><span class="v mono" id="set-url">—</span></div>
           <div class="set-row"><span class="k">Studio version</span><span class="v mono" id="set-ver">—</span></div>
         </div>
         <div class="settings-group">
