@@ -53,6 +53,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     SUPERVISOR.adopt_orphans()
     poller = asyncio.create_task(SUPERVISOR.run())
     yield
+    # DESIGN: the studio is a cockpit, not a daemon — shutdown NEVER kills agents (they're independent
+    # host() servers, re-adopted next launch; only an explicit Stop does). So there's nothing to flush
+    # here: just drop the health poll. Don't add kill-agents-on-quit without also flushing their logs.
     poller.cancel()
     with suppress(asyncio.CancelledError):
         await poller

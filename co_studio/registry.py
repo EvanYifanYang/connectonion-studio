@@ -32,9 +32,8 @@ class AgentMeta:
 
 
 def ensure_dirs() -> None:
-    """Create the studio home, agents, and trash directories."""
-    for directory in (config.AGENTS_DIR, config.TRASH_DIR):
-        directory.mkdir(parents=True, exist_ok=True)
+    """Create the studio home and agents directories."""
+    config.AGENTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @contextmanager
