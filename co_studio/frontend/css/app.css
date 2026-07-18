@@ -171,7 +171,7 @@ body.shell-ready #app.is-firstrun #firstrun { transition: opacity 0.42s ease, vi
    card, the grid is CLIPPED (overflow:hidden), never reflowed → no row-jump. */
 .content { flex: none; width: 874px; display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: none; }
 .content::-webkit-scrollbar { width: 0; height: 0; }   /* hide the scrollbar (scroll still works) */
-main { max-width: 1120px; width: 100%; margin: 0; padding: 28px 28px 40px; flex: 1 0 auto; }
+main { max-width: 1120px; width: 100%; margin: 0; padding: 28px 28px 40px; flex: 1 0 auto; display: flex; flex-direction: column; }
 
 /* ---- sidebar (left rail) ------------------------------------------- */
 .sidebar {
@@ -333,6 +333,16 @@ body.shell-ready #app { transition: opacity 0.42s ease, transform 0.5s cubic-bez
   grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));   /* ~3 per row, small */
   gap: 16px;
 }
+
+/* Quiet footnote pinned to the BOTTOM of the list — only shown (by app.js) when an agent has a live
+   process, so the user knows closing Studio leaves it running. "Studio" picks up the brand serif;
+   "Stop" (the card control) lifts to full ink + semibold. --ink-2 = readable-but-muted. */
+#view-list { flex: 1 1 auto; display: flex; flex-direction: column; }
+/* margin-bottom pulls it down into main's 40px bottom padding so it sits on the same baseline as the
+   sidebar's "Powered by OpenOnion" (~22px off the window bottom): 40 − (sidebar 16 + powered 6) = 18. */
+.persist-note { margin: 0 0 -18px; margin-top: auto; padding-top: 24px; text-align: center; font-family: var(--font-ui); font-size: 12px; color: var(--ink-2); }
+.persist-note .pn-brand { font-family: var(--font-brand); font-style: italic; }
+.persist-note .pn-strong { color: var(--ink); font-weight: 600; }
 
 /* ---- empty state (hero) -------------------------------------------- */
 .empty-state {
@@ -1118,3 +1128,47 @@ body.shell-ready #app.is-detail .detail-panel { transition: transform 0.34s cubi
 
 /* ---- misc ---------------------------------------------------------- */
 [hidden] { display: none !important; }
+
+/* ============================================================
+   Native-shell mode (?desktop=1)
+   The inline <head> script adds `.desktop` to <html> when the URL
+   carries ?desktop (the macOS WKWebView loads `…/?desktop=1`).
+   EVERYTHING below is scoped under html.desktop, so the plain-browser
+   build is byte-for-byte unchanged. It swaps the floating centered card
+   for a full-window layout, drops the gradient glows, and reserves a
+   top strip so no view's content sits under the macOS traffic lights.
+   API/WS wiring is untouched — this is presentation only.
+   ============================================================ */
+html.desktop { --titlebar-h: 30px; }   /* reserved strip for the traffic lights (native-drag zone) */
+
+/* fill the window: no gradient margin, no floating card, no glows */
+html.desktop body { padding: 0; }
+html.desktop body::before,
+html.desktop body::after { display: none; }   /* kill the two drifting violet glows */
+
+html.desktop #app {
+  width: 100vw;
+  height: 100vh !important;   /* !important: defeats paintWizard's inline app.style.height,
+                                 which shrinks the floating card — a web-only affordance */
+  max-width: none;            /* also neutralizes #app.is-creating's 600px column shrink */
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* content pane fills the width left of the sidebar (was a fixed 874px card column) */
+html.desktop .content { width: auto; flex: 1 1 auto; min-width: 0; }
+
+/* --- top inset: every view that can render at the window's top edge reserves the
+   traffic-light strip, so the brand, the "Agents" header, the wizard, settings, the
+   detail panel and the disconnect banner all clear it. calc(existing-top + strip)
+   keeps each element's own padding; --titlebar-h is only defined under html.desktop,
+   so these rules can't affect the web build. --- */
+html.desktop .sidebar-head   { padding-top: 24px; }   /* just clear the traffic lights above the brand — no need for the full strip */
+html.desktop .content-head   { padding-top: calc(2px + var(--titlebar-h)); }   /* keep the search box just below the top drag strip so it stays clickable, but tighter than before */
+html.desktop .conn-banner    { padding-top: calc(7px  + var(--titlebar-h)); }
+html.desktop #firstrun       { padding-top: calc(32px + var(--titlebar-h)); }
+html.desktop #create-view    { padding-top: calc(32px + var(--titlebar-h)); }
+html.desktop #settings-view  { padding-top: calc(40px + var(--titlebar-h)); }
+html.desktop .fullscreen-card { padding-top: calc(20px + var(--titlebar-h)); }  /* onboarding */
+html.desktop .detail-head    { padding-top: calc(15px + var(--titlebar-h)); }
