@@ -1,8 +1,11 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/EvanYifanYang/connectonion-studio/main/co_studio/frontend/assets/onion/onion_full.png" width="96" alt="ConnectOnion Studio" />
+<img src="https://raw.githubusercontent.com/EvanYifanYang/connectonion-studio/main/co_studio/frontend/assets/onion/onion_full.png" width="96" alt="" />
 
-# ConnectOnion Studio
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/EvanYifanYang/connectonion-studio/main/assets/wordmark-dark.png">
+  <img src="https://raw.githubusercontent.com/EvanYifanYang/connectonion-studio/main/assets/wordmark-light.png" width="360" alt="ConnectOnion Studio" />
+</picture>
 
 **A local test cockpit for [ConnectOnion](https://github.com/openonion/connectonion) agents.**
 
@@ -25,6 +28,10 @@ co-studio                             # opens http://127.0.0.1:9900
 
 That's it. The first launch **auto-creates your identity and activates your managed model key** (needs internet — it's your own key, one per user). Offline on first run? Just run `co auth` once you're back online.
 
+## Desktop app (macOS)
+
+A native macOS app (SwiftUI + WKWebView) lives in [`macos/`](macos/) — the same cockpit in a real window with the traffic-light chrome and app icon. Build and run it from Xcode (`macos/ConnectOnionStudio/`); a signed `.dmg` for one-click install is on the way.
+
 ## What it does
 
 |  |  |
@@ -34,7 +41,7 @@ That's it. The first launch **auto-creates your identity and activates your mana
 | 📱 **QR** | Bare `0x` address — scan it in the iOS "Add agent" flow |
 | 📜 **Logs** | Live stdout + framework-logger streams, per agent |
 | 🩺 **Copy for Claude** | Paste-ready markdown diagnostics bundle, one click |
-| 🗑️ **Delete** | Moves to `~/.co-studio/trash/` — identity keys are never hard-deleted |
+| 🗑️ **Delete** | Two-step confirm, then a permanent delete — identity, keys, and logs are removed for good |
 
 **Toolkits:** `utility` · `web` · `files` · `shell` (approval-gated) · `image`
 
@@ -54,7 +61,7 @@ That's it. The first launch **auto-creates your identity and activates your mana
 | `GET` | `/api/agents/{slug}` | AgentDetail |
 | `POST` | `/api/agents/{slug}/start` · `/stop` · `/restart` | `{"state": …}` |
 | `POST` | `/api/agents/{slug}/rename` | AgentSummary — body `{name}` |
-| `DELETE` | `/api/agents/{slug}` | `204` (moved to trash) |
+| `DELETE` | `/api/agents/{slug}` | `204` (stops the agent, then permanently deletes it) |
 | `GET` | `/api/agents/{slug}/qr.svg` | SVG QR |
 | `GET` | `/api/agents/{slug}/diagnostics` | Markdown bundle |
 | `GET` | `/api/setup/status` | Doctor checks |
@@ -70,7 +77,6 @@ That's it. The first launch **auto-creates your identity and activates your mana
 
 ```
 ~/.co-studio/agents/<slug>/   meta.json · agent.py · .env · .co/ · studio-stdout.log
-~/.co-studio/trash/           deleted agents (timestamped)
 ```
 
 - Agent ports `8000–8099`, allocated by socket probe (busy ports skipped, re-probed at start).
