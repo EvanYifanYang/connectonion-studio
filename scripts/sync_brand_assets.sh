@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # sync_brand_assets.sh — copy the 8 onion layer PNGs from the
-# iOS app's Assets.xcassets into frontend/assets/onion/.
+# iOS app's Assets.xcassets into co_studio/frontend/assets/onion/.
 #
 # Usage:
 #   ./scripts/sync_brand_assets.sh [path/to/Assets.xcassets]
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEST="$REPO_ROOT/frontend/assets/onion"
+DEST="$REPO_ROOT/co_studio/frontend/assets/onion"
 
 DEFAULT_XCASSETS="/Users/evan/Desktop/UNSW 26T2/COMP9900_Mon18/repo/capstone-project-26t2-9900-t11c-almond/ConnectOnion iOS/Assets.xcassets"
 SRC="${1:-${IOS_XCASSETS:-$DEFAULT_XCASSETS}}"

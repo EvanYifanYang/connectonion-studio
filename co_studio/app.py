@@ -15,10 +15,36 @@ from .api import agents, settings_api, setup, ws
 from .supervisor import SUPERVISOR
 
 
+def _auto_authenticate() -> None:
+    """Best-effort: mint THIS user's own managed key on first run, so no manual `co auth` is needed.
+
+    connectonion's auth is signature-based — no login/password/browser: it signs with the local
+    ~/.co Ed25519 key and the backend auto-creates the account. The key is always PER-USER, never a
+    shared/bundled secret. Silent no-op on any failure (offline, backend down, or a refactor of these
+    CLI internals); the onboarding screen still covers those cases and re-polls /api/setup/status.
+    """
+    if setup_check._has_managed_key():  # already activated → nothing to do
+        return
+    try:
+        from connectonion.cli.commands.auth_commands import authenticate
+        from connectonion.cli.commands.project_cmd_lib import ensure_global_config
+
+        if not (config.MAIN_CO_DIR / "keys" / "agent.key").exists():
+            ensure_global_config()  # auth needs a keypair to sign — create the ~/.co identity first
+        ok = authenticate(config.MAIN_CO_DIR, save_to_project=False, quiet=True)
+        state = "ok — managed key ready" if ok else "skipped (offline?); run `co auth` when online"
+        print(f"[co-studio] auto-auth {state}", flush=True)
+    except Exception as exc:  # noqa: BLE001 — never block startup on framework internals / network
+        print(f"[co-studio] auto-auth unavailable ({exc!r}) — run `co auth` manually if needed", flush=True)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Run the doctor, adopt orphan agents, and drive the health-poll loop."""
+    """Run the doctor, kick off first-run auth, adopt orphan agents, and drive the health poll."""
     registry.ensure_dirs()
+    # Background + best-effort so the server binds immediately; the key lands within a few seconds
+    # and the onboarding screen (2s poll) dismisses itself once /api/setup/status flips to key_ok.
+    auth_task = asyncio.create_task(asyncio.to_thread(_auto_authenticate))
     for entry in setup_check.run_doctor():
         mark = "ok  " if entry["ok"] else "FAIL"
         print(f"[co-studio] doctor {mark} {entry['check']} — {entry['detail']}", flush=True)
@@ -26,8 +52,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     poller = asyncio.create_task(SUPERVISOR.run())
     yield
     poller.cancel()
-    with suppress(asyncio.CancelledError):
-        await poller
+    auth_task.cancel()
+    for task in (poller, auth_task):
+        with suppress(asyncio.CancelledError, Exception):
+            await task
 
 
 def create_app() -> FastAPI:

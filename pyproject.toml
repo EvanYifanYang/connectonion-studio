@@ -8,13 +8,31 @@ version = "0.1.0"
 description = "ConnectOnion Studio — local test cockpit for ConnectOnion agents: create, run, QR, live logs, Copy-for-Claude diagnostics."
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "EvanYifanYang", email = "209575631+EvanYifanYang@users.noreply.github.com" }]
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "segno>=1.6",
-    # From git source, NEVER PyPI (0.4.x has no host()).
-    "connectonion @ git+https://github.com/openonion/connectonion.git",
+    "pydantic>=2",          # request models (was only transitive via fastapi)
+    "ifaddr>=0.2",          # agent IP announce patch (was only transitive)
+    "psutil>=5.9",          # cross-platform process teardown / liveness (Windows-safe)
+    "filelock>=3.12",       # cross-platform registry lock (replaces POSIX-only fcntl)
+    "connectonion>=1.2.1",  # PyPI 1.2.1 (2026-07-17) ships host()/co_dir/get_ips — verified
 ]
+
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/EvanYifanYang/connectonion-studio"
+Repository = "https://github.com/EvanYifanYang/connectonion-studio"
+Issues = "https://github.com/EvanYifanYang/connectonion-studio/issues"
 
 [project.scripts]
 co-studio = "co_studio.__main__:main"
@@ -23,4 +41,10 @@ co-studio = "co_studio.__main__:main"
 include = ["co_studio*"]
 
 [tool.setuptools.package-data]
-co_studio = ["templates/*.tmpl"]
+co_studio = [
+    "templates/*.tmpl",
+    "frontend/index.html",
+    "frontend/css/*.css",
+    "frontend/js/*.js",
+    "frontend/assets/onion/*.png",
+]
