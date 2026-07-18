@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "connectonion-studio"
+version = "0.1.0"
+description = "ConnectOnion Studio — local test cockpit for ConnectOnion agents: create, run, QR, live logs, Copy-for-Claude diagnostics."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "segno>=1.6",
+    # From git source, NEVER PyPI (0.4.x has no host()).
+    "connectonion @ git+https://github.com/openonion/connectonion.git",
+]
+
+[project.scripts]
+co-studio = "co_studio.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["co_studio*"]
+
+[tool.setuptools.package-data]
+co_studio = ["templates/*.tmpl"]

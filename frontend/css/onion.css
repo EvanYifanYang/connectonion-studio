@@ -1,0 +1,174 @@
+/* ============================================================
+   Onion component — 8 stacked layer PNGs, 4 animation classes
+   mirroring the iOS app (DESIGN.md §5):
+     .assemble  outer→inner build            (list / landing)
+     .splash    assemble + wordmark wave, hold, disassemble
+     .hero      core→peel reverse build + violet halo breathe
+     .thinking  26px, black peel fixed, 7 rings ping-pong 2.2s
+   JS sets --i (0-based, 0 = outermost black peel) per <img>
+   and --li per wordmark letter <span>.
+   ============================================================ */
+
+:root {
+  /* iOS spring(response .5, damping .62) ≈ stiffness 158 / damping 15.6 / mass 1 */
+  --spring: cubic-bezier(0.32, 1.46, 0.54, 1);
+}
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    /* the same spring pre-sampled over a 0.6s duration */
+    --spring: linear(
+      0, 0.15 8.3%, 0.445 16.7%, 0.727 25%, 0.93 33.3%, 1.04 41.7%,
+      1.081 50%, 1.078 58.3%, 1.056 66.7%, 1.031 75%, 1.011 83.3%,
+      0.999 91.7%, 1
+    );
+  }
+}
+
+/* ---- structure ----------------------------------------------------- */
+.onion {
+  position: relative;
+  width:  var(--onion-size, 96px);
+  height: var(--onion-size, 96px);
+  flex: none;
+}
+.onion img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+/* z order: 1 (outer black peel, bottom) → 8 (core, top) */
+.onion img.l1 { z-index: 1; }  .onion img.l2 { z-index: 2; }
+.onion img.l3 { z-index: 3; }  .onion img.l4 { z-index: 4; }
+.onion img.l5 { z-index: 5; }  .onion img.l6 { z-index: 6; }
+.onion img.l7 { z-index: 7; }  .onion img.l8 { z-index: 8; }
+
+/* ---- shared keyframes ---------------------------------------------- */
+@keyframes onion-in {
+  from { opacity: 0; transform: scale(0.82); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes onion-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.86); }
+}
+@keyframes letter-in {
+  from { opacity: 0; transform: translateY(9px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes letter-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* ---- .assemble : outer→inner, scale .82→1 + fade, delay i*0.09s ---- */
+.onion.assemble img {
+  animation: onion-in 0.6s var(--spring) both;
+  animation-delay: calc(var(--i) * 0.09s);
+}
+
+/* ---- .splash : assemble (~1.2s) + wordmark wave-in left→right,
+       hold (~.5s), disassemble inner→outer ---------------------------- */
+.splash .onion img {
+  animation:
+    onion-in  0.6s  var(--spring) both,
+    onion-out 0.38s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation-delay:
+    calc(var(--i) * 0.09s),
+    calc(1.82s + (7 - var(--i)) * 0.06s);
+}
+.splash .wordmark span {
+  display: inline-block;
+  animation:
+    letter-in  0.5s var(--spring) both,
+    letter-out 0.3s ease-in forwards;
+  animation-delay:
+    calc(0.3s + var(--li) * 0.045s),
+    calc(1.95s + var(--li) * 0.02s);
+}
+
+/* Pre-roll guard: before `.splash` is added the stage children have no animation
+   and would sit fully opaque. Hold them hidden so the pre-roll (image decode +
+   brand-font activation) can't flash a static onion/wordmark before the wave.
+   Once `.splash` is on, the animations above own opacity (via `both`/`forwards`). */
+.splash-stage .onion img,
+.splash-stage .wordmark span { opacity: 0; }
+
+/* Splash wordmark is locked to Georgia — a bundled, complete font with a real
+   italic face. Unlike the system New York (named OR via ui-serif), Georgia never
+   activates lazily and is never synthesized, so "Studio" is the exact same italic
+   from the first frame to the last: no mid-animation font swap (the "i" dot that
+   kept changing). font-synthesis:none guarantees the real italic, never a fake slant. */
+.splash-stage .wordmark {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-synthesis: none;
+}
+
+/* ---- .hero : core→peel reverse build + violet halo breathe --------- */
+.onion.hero img {
+  animation: onion-in 0.6s var(--spring) both;
+  animation-delay: calc((7 - var(--i)) * 0.085s);
+}
+.onion.hero::before {
+  content: "";
+  position: absolute;
+  inset: -28%;
+  z-index: 0;                      /* behind layers (they start at z 1) */
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--accent), transparent 72%);
+  opacity: 0.16;
+  animation: halo-breathe 2.8s ease-in-out infinite;
+}
+@keyframes halo-breathe {
+  0%, 100% { opacity: 0.12; transform: scale(0.92); }
+  50%      { opacity: 0.22; transform: scale(1.06); }
+}
+
+/* ---- .thinking : 26px, black peel always visible, 7 rings
+       ping-pong 0→7→0 over 2.2s ------------------------------------- */
+.onion.thinking {
+  width: 26px;
+  height: 26px;
+}
+.onion.thinking img { animation: none; opacity: 0; transform: none; }
+.onion.thinking img.l1 { opacity: 1; }                       /* black peel */
+.onion.thinking img.l2 { animation: think-2 2.2s linear infinite; }
+.onion.thinking img.l3 { animation: think-3 2.2s linear infinite; }
+.onion.thinking img.l4 { animation: think-4 2.2s linear infinite; }
+.onion.thinking img.l5 { animation: think-5 2.2s linear infinite; }
+.onion.thinking img.l6 { animation: think-6 2.2s linear infinite; }
+.onion.thinking img.l7 { animation: think-7 2.2s linear infinite; }
+.onion.thinking img.l8 { animation: think-8 2.2s linear infinite; }
+
+/* ring k turns on at (k/7)*50% and off at 100-(k/7)*50% (opacity only) */
+@keyframes think-2 { 0%, 5%  { opacity: 0; } 7%,  93%   { opacity: 1; } 95%, 100%   { opacity: 0; } }
+@keyframes think-3 { 0%, 12% { opacity: 0; } 14%, 86%   { opacity: 1; } 88%, 100%   { opacity: 0; } }
+@keyframes think-4 { 0%, 19% { opacity: 0; } 21%, 79%   { opacity: 1; } 81%, 100%   { opacity: 0; } }
+@keyframes think-5 { 0%, 27% { opacity: 0; } 29%, 71%   { opacity: 1; } 73%, 100%   { opacity: 0; } }
+@keyframes think-6 { 0%, 34% { opacity: 0; } 36%, 64%   { opacity: 1; } 66%, 100%   { opacity: 0; } }
+@keyframes think-7 { 0%, 41% { opacity: 0; } 43%, 57%   { opacity: 1; } 59%, 100%   { opacity: 0; } }
+@keyframes think-8 { 0%, 46% { opacity: 0; } 49%, 51%   { opacity: 1; } 54%, 100%   { opacity: 0; } }
+
+/* ---- reduced motion: opacity-only, no scale/translate, no loops ---- */
+@media (prefers-reduced-motion: reduce) {
+  .onion.assemble img,
+  .onion.hero img {
+    animation: fade-in 0.4s ease both;
+    animation-delay: 0s;
+  }
+  .splash .onion img {
+    animation: fade-in 0.4s ease both, fade-out 0.3s ease forwards;
+    animation-delay: 0s, 1.5s;
+  }
+  .splash .wordmark span {
+    animation: fade-in 0.4s ease both, fade-out 0.3s ease forwards;
+    animation-delay: 0.1s, 1.5s;
+  }
+  .onion.hero::before { animation: none; opacity: 0.14; }
+  /* .thinking is already opacity-only — allowed to keep looping */
+}

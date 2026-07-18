@@ -1,0 +1,20 @@
+# ── OS ──
+.DS_Store
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# ── Runtime / local state ──
+*.log
+.co-studio/
+
+# ── 内部设计 & 开发思考文档：只留本地，永不发布 ──
+docs/
+DESIGN.md

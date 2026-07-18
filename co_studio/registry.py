@@ -1,0 +1,84 @@
+"""Persistence for agent metadata under ~/.co-studio/agents/<slug>/meta.json."""
+
+from __future__ import annotations
+
+import dataclasses
+import fcntl
+import json
+import shutil
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterator
+
+from . import config
+
+
+@dataclass
+class AgentMeta:
+    """Static per-agent record stored in meta.json (runtime state lives in the supervisor)."""
+
+    slug: str
+    name: str
+    address: str
+    port: int
+    model: str
+    toolkits: list[str]
+    created_at: str
+    trust: str = "open"   # who may connect: open | careful | strict (default keeps old agents valid)
+
+
+def ensure_dirs() -> None:
+    """Create the studio home, agents, and trash directories."""
+    for directory in (config.AGENTS_DIR, config.TRASH_DIR):
+        directory.mkdir(parents=True, exist_ok=True)
+
+
+@contextmanager
+def locked() -> Iterator[None]:
+    """Exclusive fcntl lock serialising registry mutations across processes."""
+    ensure_dirs()
+    with open(config.INDEX_LOCK, "w") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def agent_dir(slug: str) -> Path:
+    """Directory holding one agent's meta.json, agent.py, .env, .co/, and logs."""
+    return config.AGENTS_DIR / slug
+
+
+def save(meta: AgentMeta) -> None:
+    """Write meta.json for an agent (its directory must already exist)."""
+    path = agent_dir(meta.slug) / "meta.json"
+    path.write_text(json.dumps(dataclasses.asdict(meta), indent=2) + "\n")
+
+
+def load(slug: str) -> AgentMeta | None:
+    """Read one agent's meta.json, or None if it does not exist or is unreadable."""
+    path = agent_dir(slug) / "meta.json"
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    known = {f.name for f in dataclasses.fields(AgentMeta)}
+    return AgentMeta(**{k: v for k, v in data.items() if k in known})
+
+
+def load_all() -> list[AgentMeta]:
+    """All registered agents, oldest first."""
+    if not config.AGENTS_DIR.is_dir():
+        return []
+    metas = [load(p.name) for p in sorted(config.AGENTS_DIR.iterdir()) if p.is_dir()]
+    return sorted((m for m in metas if m is not None), key=lambda m: m.created_at)
+
+
+def delete(slug: str) -> None:
+    """Permanently remove the agent directory (identity, keys, logs — all of it)."""
+    shutil.rmtree(agent_dir(slug), ignore_errors=True)

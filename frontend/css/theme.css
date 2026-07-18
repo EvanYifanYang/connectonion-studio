@@ -1,0 +1,153 @@
+/* ============================================================
+   ConnectOnion Studio — brand tokens  (DESIGN.md §5, 1:1 iOS)
+   Light + dark via prefers-color-scheme AND manual override:
+     <html data-theme="light" | "dark">  (absent = follow system)
+   Iron rule: monochrome + ONE violet. --accent appears ONLY on
+   primary buttons, the onion, selection states, the online dot.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* surfaces — Claude-console tone steps: depth from warm tone + 1px border, NOT shadow */
+  --canvas:    #F0EEE6;   /* warm parchment (the page chrome) */
+  --grouped:   #E9E6DC;   /* deeper groove (grouped screens) */
+  --elevated:  #FAF9F5;   /* card — lighter than canvas, so it lifts by tone alone */
+  --elevated2: #FFFFFF;   /* brightest inset — inputs, code wells */
+
+  /* the one violet */
+  --accent:      #6E56F2;
+  --accent-soft: rgba(110, 86, 242, 0.12);
+  --on-accent:   #FFFFFF;
+
+  /* warm ink */
+  --ink:   #262523;
+  --ink-2: rgba(38, 37, 35, 0.70);   /* WCAG AA on --canvas (5.56:1) — real body copy */
+  --ink-3: rgba(38, 37, 35, 0.40);   /* decorative only (dots, dividers) */
+
+  /* lines + glass */
+  --hairline:        rgba(38, 37, 35, 0.10);
+  --hairline-strong: rgba(38, 37, 35, 0.18);
+  --glass-bg:        rgba(255, 255, 255, 0.62);
+  --scrim:           rgba(38, 37, 35, 0.32);
+  --shadow: 0 1px 2px rgba(38, 37, 35, 0.04), 0 8px 24px rgba(38, 37, 35, 0.06);
+
+  /* errors only (log highlighting, crashed state) — not a brand color */
+  --danger:      #C0452B;
+  --danger-soft: rgba(192, 69, 43, 0.12);
+
+  /* ok/operational + success — functional status green, not a brand color */
+  --ok:      #3F9D6B;
+  --ok-soft: rgba(63, 157, 107, 0.14);
+
+  /* type */
+  --font-ui:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  --font-brand: 'New York', ui-serif, Georgia, 'Times New Roman', serif;
+  --font-mono:  ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* shape */
+  --radius-card:    16px;
+  --radius-control: 10px;
+}
+
+/* ---- dark (system) ------------------------------------------------ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --canvas:    #262523;   /* warm black */
+    --grouped:   #262523;
+    --elevated:  #34322F;
+    --elevated2: #403E3A;
+
+    --accent:      #8B77FF;
+    --accent-soft: rgba(139, 119, 255, 0.12);
+    --on-accent:   #FFFFFF;
+
+    --ink:   #ECEAE4;
+    --ink-2: rgba(236, 234, 228, 0.62);
+    --ink-3: rgba(236, 234, 228, 0.40);
+
+    --hairline:        rgba(255, 255, 255, 0.10);
+    --hairline-strong: rgba(255, 255, 255, 0.18);
+    --glass-bg:        rgba(52, 50, 47, 0.60);
+    --scrim:           rgba(0, 0, 0, 0.45);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.20), 0 8px 24px rgba(0, 0, 0, 0.28);
+
+    --danger:      #E0705A;
+    --danger-soft: rgba(224, 112, 90, 0.16);
+
+    --ok:      #6BCB92;
+    --ok-soft: rgba(107, 203, 146, 0.16);
+  }
+}
+
+/* ---- dark (manual toggle) — keep in sync with the block above ----- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --canvas:    #262523;
+  --grouped:   #262523;
+  --elevated:  #34322F;
+  --elevated2: #403E3A;
+
+  --accent:      #8B77FF;
+  --accent-soft: rgba(139, 119, 255, 0.12);
+  --on-accent:   #FFFFFF;
+
+  --ink:   #ECEAE4;
+  --ink-2: rgba(236, 234, 228, 0.62);
+  --ink-3: rgba(236, 234, 228, 0.40);
+
+  --hairline:        rgba(255, 255, 255, 0.10);
+  --hairline-strong: rgba(255, 255, 255, 0.18);
+  --glass-bg:        rgba(52, 50, 47, 0.60);
+  --scrim:           rgba(0, 0, 0, 0.45);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.20), 0 8px 24px rgba(0, 0, 0, 0.28);
+
+  --danger:      #E0705A;
+  --danger-soft: rgba(224, 112, 90, 0.16);
+}
+
+/* ---- base --------------------------------------------------------- */
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font: 15px/1.45 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--accent-soft); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+code, .mono { font-family: var(--font-mono); }
+
+/* ---- Liquid-Glass (same CSS the v1.5 WKWebView shell will reuse) -- */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--hairline);
+}
+
+/* ---- brand wordmark ------------------------------------------------ */
+.wordmark {
+  font-family: var(--font-brand);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+/* the "Studio" suffix — italic + lighter, matching the sidebar wordmark */
+.wordmark .wm-sub { font-weight: 400; font-style: italic; color: var(--ink-2); }
+.wordmark-sm  { font-size: 20px; }   /* header wordmark */
+.wordmark-hero { font-size: 34px; }  /* splash / hero wordmark */
