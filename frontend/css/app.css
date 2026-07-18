@@ -520,7 +520,7 @@ body.shell-ready #app { transition: opacity 0.42s ease, transform 0.5s cubic-bez
 .card-sub { display: flex; align-items: center; gap: 7px; flex-wrap: nowrap; min-width: 0; }
 .card-state { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; }
 .state-word { font-weight: 500; color: var(--ink); letter-spacing: 0.01em; }
-[data-state="online"] .state-word { color: var(--accent); }
+[data-state="online"] .state-word { color: var(--ok); }
 [data-state="crashed"] .state-word { color: var(--danger); }
 [data-state="offline"] .state-word,
 [data-state="stopped"] .state-word { color: var(--ink-2); font-weight: 400; }
@@ -542,12 +542,12 @@ body.shell-ready #app { transition: opacity 0.42s ease, transform 0.5s cubic-bez
   flex: 1; min-height: 0;
   border-top: 1px solid var(--hairline);
 }
-.row-ico {                              /* plain violet glyph — no filled square, lighter rows */
-  flex: none; width: 20px; height: 20px;
+.row-ico {                              /* neutral grey glyph — violet is reserved for chips + Start */
+  flex: none; width: 18px; height: 18px;
   display: inline-grid; place-items: center;
-  color: var(--accent);
+  color: var(--ink-2);
 }
-.row-ico svg { width: 18px; height: 18px; }
+.row-ico svg { width: 16px; height: 16px; }
 .row-label { flex: none; font-size: 13px; color: var(--ink); }
 .row-value {
   display: block; flex: 1; min-width: 0;
@@ -572,7 +572,7 @@ body.shell-ready #app { transition: opacity 0.42s ease, transform 0.5s cubic-bez
    margin-top:0 hands the old dead gap above the buttons to the flex:1 rows. */
 .card-actions { display: flex; gap: 7px; align-items: stretch; margin-top: 0; }
 .card-actions .btn { height: 34px; padding: 0 10px; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
-.card-actions .icon-square { flex: none; width: 34px; padding: 0; color: var(--accent); }
+.card-actions .icon-square { flex: none; width: 34px; padding: 0; color: var(--ink-2); }
 .card-actions .icon-square svg { width: 18px; height: 18px; }
 .card-actions .btn-detail { flex: 1; }
 .card-actions .btn-toggle { flex: 1.4; gap: 6px; }
@@ -587,14 +587,17 @@ body.shell-ready #app { transition: opacity 0.42s ease, transform 0.5s cubic-bez
   background: var(--ink-3);          /* stopped / offline / creating */
 }
 [data-state="online"] .status-dot {
-  background: var(--accent);         /* the one violet: online dot */
-  box-shadow: 0 0 0 4px var(--accent-soft);
+  background: var(--ok);             /* green: running / online */
+  box-shadow: 0 0 0 4px var(--ok-soft);
 }
 [data-state="crashed"] .status-dot { background: var(--danger); }
 [data-state="offline"] .status-dot { background: transparent; border: 2px solid var(--ink-3); }
 
-/* while starting, swap the dot for the 26px thinking onion */
+/* while starting, swap the dot for the thinking onion */
 .status-onion { display: none; }
+/* .onion.thinking forces 26px globally — shrink it here so it fits the status line
+   and the sub-row height doesn't jump when an agent starts */
+.status-onion .onion.thinking { width: 16px; height: 16px; }
 [data-state="starting"] .status-dot,
 [data-state="creating"] .status-dot { display: none; }
 [data-state="starting"] .status-onion,

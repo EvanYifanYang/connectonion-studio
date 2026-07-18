@@ -139,7 +139,7 @@ function agentCard(agent) {
       </div>
     </div>`;
   $('.status-onion', card).appendChild(
-    createOnion({ size: 22, mode: 'thinking', label: 'starting' }),
+    createOnion({ size: 16, mode: 'thinking', label: 'starting' }),   // ≤ the row's text/chip height → no row-height jump on Start
   );
 
   $('.btn-copy-addr', card).addEventListener('click', (e) => {
