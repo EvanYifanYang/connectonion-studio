@@ -19,7 +19,11 @@ def read_tail(path: Path | None, lines: int = 20) -> list[str]:
     if path is None or not path.exists():
         return []
     try:
-        data = path.read_bytes()[-_TAIL_BYTES:]
+        with path.open("rb") as handle:  # seek to the tail — never load a multi-GB log whole
+            handle.seek(0, 2)  # SEEK_END
+            size = handle.tell()
+            handle.seek(max(0, size - _TAIL_BYTES))
+            data = handle.read()
     except OSError:
         return []
     return data.decode("utf-8", errors="replace").splitlines()[-lines:]

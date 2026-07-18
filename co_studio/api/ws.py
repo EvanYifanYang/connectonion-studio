@@ -52,15 +52,31 @@ async def logs_ws(websocket: WebSocket, slug: str) -> None:
         async for line in logs.follow(get_path):
             await queue.put({"source": source, "line": line})
 
+    async def send_loop() -> None:
+        while True:
+            await websocket.send_json(await queue.get())
+
+    async def recv_loop() -> None:
+        # Nothing else reads the socket, so an idle client's disconnect would never
+        # surface (send_loop is parked on queue.get()). Draining receives lets a close
+        # wake us so the pump tasks don't leak forever.
+        while True:
+            message = await websocket.receive()
+            if message.get("type") == "websocket.disconnect":
+                return
+
     tasks = [
         asyncio.create_task(pump("stdout", lambda: stdout_path)),
         asyncio.create_task(pump("logger", lambda: logs.logger_log_path(agent_dir))),
+        asyncio.create_task(send_loop()),
+        asyncio.create_task(recv_loop()),
     ]
     try:
-        while True:
-            await websocket.send_json(await queue.get())
-    except (WebSocketDisconnect, RuntimeError):
-        pass
+        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            with suppress(WebSocketDisconnect, RuntimeError):
+                task.result()  # absorb the expected disconnect/close; re-raise anything else
     finally:
         for task in tasks:
             task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)

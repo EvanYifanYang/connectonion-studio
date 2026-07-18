@@ -4,9 +4,22 @@ from __future__ import annotations
 
 import importlib.metadata
 import inspect
+import re
 from typing import Any
 
 from . import config
+
+# One uncommented, non-empty OPENONION_API_KEY=<value> assignment (value on the same line).
+_KEY_RE = re.compile(r"(?m)^[ \t]*OPENONION_API_KEY[ \t]*=[ \t]*\S")
+
+
+def _has_managed_key() -> bool:
+    """True iff keys.env holds a real OPENONION_API_KEY; unreadable/missing/empty → False."""
+    try:
+        text = config.KEYS_ENV.read_text(errors="replace")
+    except OSError:  # missing, a directory, or unreadable — mirror the other guarded checks
+        return False
+    return _KEY_RE.search(text) is not None
 
 
 def _studio_version() -> str:
@@ -68,7 +81,7 @@ def run_doctor() -> list[dict[str, Any]]:
     except Exception as exc:  # noqa: BLE001
         add(_IDENTITY_CHECK, False, repr(exc))
 
-    key_ok = config.KEYS_ENV.exists() and "OPENONION_API_KEY" in config.KEYS_ENV.read_text(errors="replace")
+    key_ok = _has_managed_key()
     add(_KEY_CHECK, key_ok, "managed model key found" if key_ok else "run `co auth` to fetch the managed key")
     return checks
 

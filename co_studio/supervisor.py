@@ -16,6 +16,13 @@ from dataclasses import dataclass
 from . import config, logs, ports, registry
 from .registry import AgentMeta
 
+# Spawn each agent in its OWN process group so we can tear it (and any children) down as a
+# unit: POSIX uses setsid()+killpg; Windows uses a new process group + psutil tree-kill.
+if os.name == "nt":
+    _SPAWN_KWARGS = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+else:
+    _SPAWN_KWARGS = {"start_new_session": True}
+
 
 def _http_json(url: str, timeout: float = 2.0) -> dict:
     """GET a local URL and parse the JSON body."""
@@ -49,6 +56,14 @@ class Supervisor:
     def __init__(self) -> None:
         self._records: dict[str, ProcRecord] = {}
         self._subscribers: list[asyncio.Queue[bool]] = []
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    def _lock_for(self, slug: str) -> asyncio.Lock:
+        """Per-slug lock serialising start/stop/restart so two starts can't double-spawn."""
+        lock = self._locks.get(slug)
+        if lock is None:
+            lock = self._locks[slug] = asyncio.Lock()
+        return lock
 
     # ── events ───────────────────────────────────────────────────────────
     def subscribe(self) -> asyncio.Queue[bool]:
@@ -86,51 +101,53 @@ class Supervisor:
     # ── lifecycle ────────────────────────────────────────────────────────
     async def start(self, meta: AgentMeta) -> str:
         """Spawn the agent via the runner shim; reallocates the port if it went busy."""
-        record = self._records.get(meta.slug)
-        if record and record.state in ("starting", "online", "offline") and self._alive(record):
-            return record.state
-        verdict = await asyncio.to_thread(self._probe, meta.port, meta.address)
-        if verdict == "online":  # already serving (adopted or started outside the studio)
+        async with self._lock_for(meta.slug):  # two concurrent starts must not double-spawn
+            record = self._records.get(meta.slug)
+            if record and record.state in ("starting", "online", "offline") and self._alive(record):
+                return record.state
+            verdict = await asyncio.to_thread(self._probe, meta.port, meta.address)
+            if verdict == "online":  # already serving (adopted or started outside the studio)
+                self._records[meta.slug] = ProcRecord(
+                    pid=self._read_pid(meta.slug), state="online", started_at=time.time()
+                )
+                self._notify()
+                return "online"
+            if not ports.is_free(meta.port):  # someone else grabbed it — re-probe and reallocate
+                with registry.locked():
+                    reserved = {m.port for m in registry.load_all() if m.slug != meta.slug}
+                    meta.port = ports.allocate(reserved)
+                    registry.save(meta)
+            agent_dir = registry.agent_dir(meta.slug)
+            env = {**os.environ, "CO_STUDIO_PORT": str(meta.port)}
+            with open(agent_dir / config.STDOUT_LOG_NAME, "ab") as stdout:
+                popen = subprocess.Popen(  # noqa: S603 — our own generated script
+                    [sys.executable, str(config.RUNNER_PATH), str(agent_dir / "agent.py")],
+                    cwd=agent_dir,  # framework logs/sessions are cwd-relative
+                    env=env,
+                    stdout=stdout,
+                    stderr=subprocess.STDOUT,
+                    **_SPAWN_KWARGS,  # own process group for group teardown (POSIX + Windows)
+                )
+            (agent_dir / config.PIDFILE_NAME).write_text(str(popen.pid))
             self._records[meta.slug] = ProcRecord(
-                pid=self._read_pid(meta.slug), state="online", started_at=time.time()
+                pid=popen.pid, popen=popen, state="starting", started_at=time.time()
             )
             self._notify()
-            return "online"
-        if not ports.is_free(meta.port):  # someone else grabbed it — re-probe and reallocate
-            with registry.locked():
-                reserved = {m.port for m in registry.load_all() if m.slug != meta.slug}
-                meta.port = ports.allocate(reserved)
-                registry.save(meta)
-        agent_dir = registry.agent_dir(meta.slug)
-        env = {**os.environ, "CO_STUDIO_PORT": str(meta.port)}
-        with open(agent_dir / config.STDOUT_LOG_NAME, "ab") as stdout:
-            popen = subprocess.Popen(  # noqa: S603 — our own generated script
-                [sys.executable, str(config.RUNNER_PATH), str(agent_dir / "agent.py")],
-                cwd=agent_dir,  # framework logs/sessions are cwd-relative
-                env=env,
-                start_new_session=True,
-                stdout=stdout,
-                stderr=subprocess.STDOUT,
-            )
-        (agent_dir / config.PIDFILE_NAME).write_text(str(popen.pid))
-        self._records[meta.slug] = ProcRecord(
-            pid=popen.pid, popen=popen, state="starting", started_at=time.time()
-        )
-        self._notify()
-        return "starting"
+            return "starting"
 
     async def stop(self, slug: str) -> str:
         """SIGTERM the process group, 5s grace, then SIGKILL."""
-        record = self._records.get(slug)
-        if record is None or not self._alive(record):
-            self._records[slug] = ProcRecord(state="stopped")
-        else:
-            record.stop_requested = True
-            await asyncio.to_thread(self._terminate, record)
-            record.state, record.popen, record.pid = "stopped", None, None
-        self._remove_pidfile(slug)
-        self._notify()
-        return "stopped"
+        async with self._lock_for(slug):
+            record = self._records.get(slug)
+            if record is None or not self._alive(record):
+                self._records[slug] = ProcRecord(state="stopped")
+            else:
+                record.stop_requested = True
+                await asyncio.to_thread(self._terminate, record)
+                record.state, record.popen, record.pid = "stopped", None, None
+            self._remove_pidfile(slug)
+            self._notify()
+            return "stopped"
 
     async def restart(self, meta: AgentMeta) -> str:
         """Stop (if running) then start again."""
@@ -213,7 +230,10 @@ class Supervisor:
 
     @staticmethod
     def _pid_alive(pid: int) -> bool:
-        """Signal-0 liveness probe."""
+        """Liveness probe. POSIX uses signal-0; Windows can't (os.kill would *terminate*)."""
+        if os.name != "posix":
+            import psutil  # Windows-only path; declared in pyproject
+            return psutil.pid_exists(pid)
         try:
             os.kill(pid, 0)
         except ProcessLookupError:
@@ -223,18 +243,21 @@ class Supervisor:
         return True
 
     def _terminate(self, record: ProcRecord) -> None:
-        """Blocking group terminate: SIGTERM → grace → SIGKILL (runs in a thread)."""
+        """Blocking group terminate: graceful → STOP_GRACE → force (runs in a thread)."""
         pid = record.pid or (record.popen.pid if record.popen else None)
         if pid is None:
             return
-        self._killpg(pid, signal.SIGTERM)
-        deadline = time.time() + config.STOP_GRACE
-        while time.time() < deadline:
-            if not self._alive(record):
-                break
-            time.sleep(0.2)
+        if os.name == "posix":
+            self._killpg(pid, signal.SIGTERM)
+            deadline = time.time() + config.STOP_GRACE
+            while time.time() < deadline:
+                if not self._alive(record):
+                    break
+                time.sleep(0.2)
+            else:
+                self._killpg(pid, signal.SIGKILL)
         else:
-            self._killpg(pid, signal.SIGKILL)
+            self._terminate_tree_windows(pid)
         if record.popen is not None:
             with suppress(subprocess.TimeoutExpired):
                 record.popen.wait(timeout=2)  # reap the zombie
@@ -244,6 +267,24 @@ class Supervisor:
         """Signal the whole process group (start_new_session=True ⇒ pgid == pid)."""
         with suppress(ProcessLookupError, PermissionError):
             os.killpg(pid, sig)
+
+    @staticmethod
+    def _terminate_tree_windows(pid: int) -> None:
+        """Windows: terminate the agent and its child processes, force-kill any survivors."""
+        import psutil  # Windows-only path; declared in pyproject
+
+        try:
+            parent = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            return
+        procs = parent.children(recursive=True) + [parent]
+        for proc in procs:
+            with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
+                proc.terminate()
+        _, alive = psutil.wait_procs(procs, timeout=config.STOP_GRACE)
+        for proc in alive:
+            with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
+                proc.kill()
 
     @staticmethod
     def _read_pid(slug: str) -> int | None:

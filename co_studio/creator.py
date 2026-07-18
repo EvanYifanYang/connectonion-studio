@@ -52,7 +52,9 @@ def render(name: str, model: str, port: int, toolkits: list[str], trust: str) ->
     """Render agent.py from the template (the get_ips patch is inlined by the template itself)."""
     template = string.Template(config.TEMPLATE_PATH.read_text())
     return template.substitute(
-        DOC_NAME=name,
+        # DOC_NAME lands RAW inside a """...""" docstring, so collapse whitespace and
+        # strip backslashes / double-quotes: no `"""` or escape can form to break out.
+        DOC_NAME=" ".join(name.split()).replace("\\", "").replace('"', "'"),
         NAME_LITERAL=repr(name),
         MODEL_LITERAL=repr(model),
         PORT=str(port),
