@@ -9,7 +9,7 @@
 
 **A local test cockpit for [ConnectOnion](https://github.com/openonion/connectonion) agents.**
 
-Click toolkits to build an agent · scan its QR from the iOS app · watch live logs · copy a one-click diagnostics bundle straight into Claude.
+Click toolkits to build an agent · scan its QR from the iOS app · watch live logs
 
 [![PyPI](https://img.shields.io/pypi/v/connectonion-studio.svg)](https://pypi.org/project/connectonion-studio/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
