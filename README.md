@@ -1,7 +1,7 @@
 <div align="center">
 
 <img src="https://raw.githubusercontent.com/EvanYifanYang/connectonion-studio/main/co_studio/frontend/assets/onion/onion_full.png" width="96" alt="" />
-
+<br />
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/EvanYifanYang/connectonion-studio/main/assets/wordmark-dark.png">
   <img src="https://raw.githubusercontent.com/EvanYifanYang/connectonion-studio/main/assets/wordmark-light.png" width="360" alt="ConnectOnion Studio" />
