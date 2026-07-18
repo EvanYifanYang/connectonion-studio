@@ -14,12 +14,14 @@ export class ReconnectingSocket {
    * @param {string} path e.g. "/ws/status"
    * @param {{onMessage?:Function,onOpen?:Function,onClose?:Function}} handlers
    */
-  constructor(path, handlers = {}) {
+  constructor(path, handlers = {}, { heartbeatMs = 0 } = {}) {
     this.path = path;
     this.handlers = handlers;
+    this.heartbeatMs = heartbeatMs;   // >0 ⇒ treat "no frame for this long" as dead
     this.closed = false;
     this.attempt = 0;
     this.timer = null;
+    this.hbTimer = null;
     this.ws = null;
     this._connect();
   }
@@ -36,9 +38,11 @@ export class ReconnectingSocket {
     this.ws = ws;
     ws.onopen = () => {
       this.attempt = 0;
+      this._resetHeartbeat();
       this.handlers.onOpen?.();
     };
     ws.onmessage = (ev) => {
+      this._resetHeartbeat();   // any frame proves the backend is alive
       let data;
       try {
         data = JSON.parse(ev.data);
@@ -48,6 +52,7 @@ export class ReconnectingSocket {
       this.handlers.onMessage?.(data);
     };
     ws.onclose = () => {
+      clearTimeout(this.hbTimer);
       if (this.closed) return;
       this.handlers.onClose?.();
       this._scheduleRetry();
@@ -64,9 +69,21 @@ export class ReconnectingSocket {
     this.timer = setTimeout(() => this._connect(), delay);
   }
 
+  _resetHeartbeat() {
+    if (!this.heartbeatMs) return;
+    clearTimeout(this.hbTimer);
+    // The server pushes a status frame every ~5s. No frame for heartbeatMs ⇒ the backend
+    // is gone even if the socket still looks open (hung/orphaned process). Force a close so
+    // onclose fires the disconnect handler and reconnection begins.
+    this.hbTimer = setTimeout(() => {
+      try { this.ws?.close(); } catch { /* onclose handles retry */ }
+    }, this.heartbeatMs);
+  }
+
   close() {
     this.closed = true;
     clearTimeout(this.timer);
+    clearTimeout(this.hbTimer);
     if (this.ws) {
       this.ws.onclose = null;
       try { this.ws.close(); } catch { /* noop */ }
@@ -82,7 +99,7 @@ export function statusSocket(onAgents, onConnChange) {
     },
     onOpen: () => onConnChange?.(true),
     onClose: () => onConnChange?.(false),
-  });
+  }, { heartbeatMs: 12_000 });   // server heartbeats every ~5s; 12s of silence ⇒ disconnected
 }
 
 /** Per-agent live log stream. onLine({source, line}) per log line. */

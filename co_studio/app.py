@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from contextlib import asynccontextmanager, suppress
 from typing import AsyncIterator
 
@@ -42,9 +43,10 @@ def _auto_authenticate() -> None:
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Run the doctor, kick off first-run auth, adopt orphan agents, and drive the health poll."""
     registry.ensure_dirs()
-    # Background + best-effort so the server binds immediately; the key lands within a few seconds
-    # and the onboarding screen (2s poll) dismisses itself once /api/setup/status flips to key_ok.
-    auth_task = asyncio.create_task(asyncio.to_thread(_auto_authenticate))
+    # Best-effort, on a daemon thread so the server binds immediately AND a slow first-run auth
+    # call can never delay shutdown. The key lands within a few seconds; the onboarding screen
+    # (2s poll) dismisses itself once /api/setup/status flips to key_ok.
+    threading.Thread(target=_auto_authenticate, name="co-studio-auth", daemon=True).start()
     for entry in setup_check.run_doctor():
         mark = "ok  " if entry["ok"] else "FAIL"
         print(f"[co-studio] doctor {mark} {entry['check']} — {entry['detail']}", flush=True)
@@ -52,10 +54,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     poller = asyncio.create_task(SUPERVISOR.run())
     yield
     poller.cancel()
-    auth_task.cancel()
-    for task in (poller, auth_task):
-        with suppress(asyncio.CancelledError, Exception):
-            await task
+    with suppress(asyncio.CancelledError):
+        await poller
 
 
 def create_app() -> FastAPI:

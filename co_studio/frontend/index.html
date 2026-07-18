@@ -16,6 +16,13 @@
 </head>
 <body>
 
+  <!-- global connection banner — fixed at the very top, shown over EVERY screen
+       (list, first-run, create wizard, settings, onboarding) whenever the backend drops -->
+  <div id="conn-banner" class="conn-banner" hidden role="status" aria-live="polite">
+    <span class="conn-dot" aria-hidden="true"></span>
+    <span>Lost connection to co-studio — reconnecting…</span>
+  </div>
+
   <!-- (1) splash overlay — onion assembles, wordmark waves in, disassembles -->
   <div id="splash" class="splash-overlay" hidden>
     <div class="splash-stage"></div>
@@ -87,7 +94,6 @@
     </aside>
 
     <div class="content">
-      <div id="conn-banner" class="conn-banner" hidden>Reconnecting to co-studio…</div>
       <header class="content-head">
         <div class="head-titles">
           <h1 id="page-title">Agents</h1>
