@@ -23,6 +23,8 @@ xcuserdata/
 *.xcworkspace/xcuserdata/
 .swiftpm/
 *.moved-aside
+# xcodebuild -derivedDataPath output (macos/ConnectOnionStudio/)
+build-release/
 
 # ── 内部设计 & 开发思考文档：只留本地，永不发布 ──
 docs/
