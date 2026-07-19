@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from pathlib import Path
-from typing import Callable
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -44,13 +42,14 @@ async def logs_ws(websocket: WebSocket, slug: str) -> None:
         await websocket.close(code=4404)
         return
     await websocket.accept()
-    agent_dir = registry.agent_dir(slug)
-    stdout_path = agent_dir / config.STDOUT_LOG_NAME
     queue: asyncio.Queue[dict[str, str]] = asyncio.Queue()
 
-    async def pump(source: str, get_path: Callable[[], Path | None]) -> None:
-        async for line in logs.follow(get_path):
-            await queue.put({"source": source, "line": line})
+    async def pump() -> None:
+        # Follow ONLY this run's file, from its first line — so the console shows the current start
+        # onward, never earlier runs. (The framework's own .co/logs accumulates across runs and is
+        # deliberately left out here.)
+        async for line in logs.follow(lambda: SUPERVISOR.current_log_path(slug), from_start=True):
+            await queue.put({"source": "stdout", "line": line})
 
     async def send_loop() -> None:
         while True:
@@ -59,15 +58,14 @@ async def logs_ws(websocket: WebSocket, slug: str) -> None:
     async def recv_loop() -> None:
         # Nothing else reads the socket, so an idle client's disconnect would never
         # surface (send_loop is parked on queue.get()). Draining receives lets a close
-        # wake us so the pump tasks don't leak forever.
+        # wake us so the pump task doesn't leak forever.
         while True:
             message = await websocket.receive()
             if message.get("type") == "websocket.disconnect":
                 return
 
     tasks = [
-        asyncio.create_task(pump("stdout", lambda: stdout_path)),
-        asyncio.create_task(pump("logger", lambda: logs.logger_log_path(agent_dir))),
+        asyncio.create_task(pump()),
         asyncio.create_task(send_loop()),
         asyncio.create_task(recv_loop()),
     ]

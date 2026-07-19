@@ -6,7 +6,7 @@
 // ============================================================
 
 import * as api from './api.js';
-import { statusSocket } from './ws.js';
+import { statusSocket, logSocket } from './ws.js';
 import { createOnion, playSplash } from './onion.js';
 import { copyForClaude, copyText, copyWithFeedback } from './diagnostics.js';
 
@@ -16,6 +16,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const state = {
   agents: [],
   cards: new Map(),          // slug → card element
+  logs: { selected: null, socket: null, following: true, errorsOnly: false, lines: 0 },   // master–detail logs view
   busy: new Set(),           // slugs with an action in flight
   drawerSlug: null,
   drawerDetail: null,
@@ -49,6 +50,25 @@ function toast(message, kind = '') {
 // pins it so the system's dark preference can't leak through.
 function initTheme() {
   document.documentElement.dataset.theme = 'light';
+}
+
+// ---- appearance skin (Warm default / Lavender) -----------------------
+// Opt-in second skin from css/appearance.css, toggled in Settings. The saved
+// choice is applied PRE-PAINT by the inline script in index.html; this only
+// syncs the Settings radios and re-applies live when the user switches.
+const APPEARANCE_KEY = 'co-studio-appearance';
+function applyAppearance(name) {
+  if (name === 'lavender') document.documentElement.dataset.appearance = 'lavender';
+  else delete document.documentElement.dataset.appearance;   // Warm = no attribute (theme.css default)
+  try { localStorage.setItem(APPEARANCE_KEY, name === 'lavender' ? 'lavender' : 'warm'); } catch { /* storage off — session only */ }
+}
+function initAppearance() {
+  let saved = 'lavender';   // Lavender is the default skin; only an explicit choice of Warm turns it off
+  try { saved = localStorage.getItem(APPEARANCE_KEY) || 'lavender'; } catch { /* ignore */ }
+  document.querySelectorAll('input[name="appearance"]').forEach((radio) => {
+    radio.checked = radio.value === saved;
+    radio.addEventListener('change', () => { if (radio.checked) applyAppearance(radio.value); });
+  });
 }
 
 // ---- agent list -----------------------------------------------------
@@ -479,18 +499,14 @@ function renderSideHealth(setup) {
 }
 
 // ---- settings sheet (rises from the bottom of the current card) ----
-function setSettingsNav(on) {
-  const settingsNav = $('#open-settings');
-  const agentsNav = $('.nav-item[data-view="agents"]');
-  if (settingsNav) {
-    settingsNav.classList.toggle('is-active', on);
-    settingsNav.setAttribute('aria-current', on ? 'page' : 'false');
-  }
-  if (agentsNav) {
-    agentsNav.classList.toggle('is-active', !on);
-    agentsNav.setAttribute('aria-current', on ? 'false' : 'page');
-  }
+function setNav(view) {   // 'agents' | 'logs' | 'settings' — mark exactly one sidebar item active
+  document.querySelectorAll('.sidebar-nav .nav-item').forEach((el) => {
+    const on = el.dataset.view === view;
+    el.classList.toggle('is-active', on);
+    el.setAttribute('aria-current', on ? 'page' : 'false');
+  });
 }
+function setSettingsNav(on) { setNav(on ? 'settings' : 'agents'); }
 function openSettingsModal({ inset = false } = {}) {
   renderSettings(state.setup);
   const app = $('#app');
@@ -501,7 +517,7 @@ function openSettingsModal({ inset = false } = {}) {
 function closeSettingsModal() {
   const app = $('#app');
   const wasInset = app.classList.contains('is-settings-inset');
-  app.classList.remove('is-settings');
+  app.classList.remove('is-settings', 'is-settings-inset');   // clear both, or the inset flag lingers on the next view
   if (wasInset) setSettingsNav(false);                 // Agents becomes active again
   if (app.classList.contains('is-firstrun')) {   // bring "No agents yet" back to life
     const fr = $('#firstrun');
@@ -515,25 +531,231 @@ function initNav() {
   const app = $('#app');
   app.appendChild($('#settings-view'));         // relocate the sheet inside the card
   $('#settings-view').hidden = false;           // CSS visibility/transform drives it now
+  app.appendChild($('#logs-view'));             // same for the logs view (fills the content pane)
+  $('#logs-view').hidden = false;
 
-  // sidebar → Settings: toggle the content-pane settings (sidebar stays put)
+  // sidebar → Settings: toggle the content-pane settings (sidebar stays put); leaving Logs first
   const toggleInset = () => {
     if (app.classList.contains('is-settings')) closeSettingsModal();
-    else openSettingsModal({ inset: true });
+    else { if (app.classList.contains('is-logs')) closeLogsView(); openSettingsModal({ inset: true }); }
   };
   $('#open-settings').addEventListener('click', toggleInset);
   $('#open-settings').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleInset(); }
   });
-  // sidebar → Agents: step back out of settings to the list
+
+  // sidebar → Logs: toggle the content-pane log consoles
+  const toggleLogs = () => {
+    if (app.classList.contains('is-logs')) closeLogsView();
+    else openLogsView();
+  };
+  $('#open-logs').addEventListener('click', toggleLogs);
+  $('#open-logs').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLogs(); }
+  });
+  $('#logs-search').addEventListener('input', applyLogsFilter);   // filter the master list by name
+  $('#logs-reveal').addEventListener('click', revealLogsFolder);
+  $('#ld-follow').addEventListener('change', (e) => {
+    state.logs.following = e.target.checked;
+    if (e.target.checked) { const c = $('#ld-console'); c.scrollTop = c.scrollHeight; }
+  });
+  $('#ld-errors').addEventListener('click', (e) => {
+    state.logs.errorsOnly = !state.logs.errorsOnly;
+    e.currentTarget.classList.toggle('is-active', state.logs.errorsOnly);
+    e.currentTarget.setAttribute('aria-pressed', state.logs.errorsOnly ? 'true' : 'false');
+    applyErrorsFilter();
+  });
+  $('#ld-copy').addEventListener('click', (e) => {
+    if (state.logs.selected) copyForClaude(state.logs.selected, e.currentTarget);
+  });
+  $('#ld-pin').addEventListener('click', () => {
+    if (!state.logs.selected) return;
+    togglePin(state.logs.selected);          // updates localStorage + re-renders the Agents grid
+    renderLogs();                            // reflect the pin in the master list (outline + reorder)
+    const a = state.agents.find((x) => x.slug === state.logs.selected);
+    if (a) fillDetailHead(a);
+  });
+
+  // sidebar → Agents: step back out of whichever content-pane view is open
   const agentsNav = $('.nav-item[data-view="agents"]');
   if (agentsNav) agentsNav.addEventListener('click', () => {
     if (app.classList.contains('is-settings')) closeSettingsModal();
+    if (app.classList.contains('is-logs')) closeLogsView();
   });
 
   // first-run gear → full-card settings (keeps its own top-right close gear)
   $('#firstrun-settings').addEventListener('click', () => openSettingsModal({ inset: false }));
   $('#settings-close').addEventListener('click', closeSettingsModal);
+}
+
+// ---- logs view (master–detail: running-agent list + one live detail) ----
+const LOG_ERROR_RE = /\b(error|exception|traceback|critical|fatal|failed)\b|\[ERROR\]/i;
+const LOG_LINE_CAP = 2000;   // trim the console DOM so a chatty agent can't grow it without bound
+const shortModel = (m) => (m || '').replace(/^co\//, '');
+
+/** Started agents (anything not cleanly stopped — includes crashed, so logs stay), pinned floated up. */
+function runningAgents() {
+  const pinned = getPinned();
+  return state.agents
+    .filter((a) => a.state !== 'stopped')
+    .sort((a, b) => (pinned.has(b.slug) ? 1 : 0) - (pinned.has(a.slug) ? 1 : 0));
+}
+
+function relTime(epoch) {
+  if (!epoch) return '';
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - epoch));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
+}
+
+/** Filter the master list by the search box (matches agent name). */
+function applyLogsFilter() {
+  const q = ($('#logs-search')?.value || '').trim().toLowerCase();
+  document.querySelectorAll('.logs-item').forEach((el) => {
+    el.hidden = !!q && !$('.logs-item-name', el).textContent.toLowerCase().includes(q);
+  });
+}
+
+/** Rebuild the master list from the running agents; reconcile the selection. Called on open + status push. */
+function renderLogs() {
+  const running = runningAgents();
+  const pinned = getPinned();
+  const list = $('#logs-list');
+
+  $('#logs-subtitle').textContent = `${running.length} streaming · ${state.agents.length} total`;
+  $('#logs-count').textContent = `(${running.length})`;
+  $('#logs-empty').hidden = running.length > 0;
+
+  list.replaceChildren();
+  for (const a of running) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'logs-item';
+    item.dataset.slug = a.slug;
+    item.setAttribute('role', 'option');
+    item.classList.toggle('is-selected', a.slug === state.logs.selected);
+    item.classList.toggle('is-pinned', pinned.has(a.slug));
+    item.innerHTML = `
+      <span class="logs-item-dot" data-state="${a.state}"></span>
+      <span class="logs-item-body">
+        <span class="logs-item-top"><span class="logs-item-name"></span><span class="logs-item-time"></span></span>
+        <span class="logs-item-meta"></span>
+      </span>`;
+    $('.logs-item-name', item).textContent = a.name;
+    $('.logs-item-time', item).textContent = relTime(a.started_at);
+    $('.logs-item-meta', item).textContent = shortAddr(a.address);
+    item.addEventListener('click', () => selectLogAgent(a.slug));
+    list.appendChild(item);
+  }
+  applyLogsFilter();
+
+  // selection: keep the current one if still running (don't churn its socket); else pick the first
+  if (state.logs.selected && running.some((a) => a.slug === state.logs.selected)) {
+    const summary = state.agents.find((a) => a.slug === state.logs.selected);
+    if (summary) fillDetailHead(summary);   // refresh the state badge while streaming continues
+  } else {
+    selectLogAgent(running[0]?.slug || null);
+  }
+}
+
+/** Select an agent: swap the live socket + console and populate the detail pane. */
+function selectLogAgent(slug) {
+  if (state.logs.socket) { state.logs.socket.close(); state.logs.socket = null; }
+  state.logs.selected = slug;
+  state.logs.lines = 0;
+  $('#ld-console').replaceChildren();
+  $('#ld-lines').textContent = '0 lines';
+  document.querySelectorAll('.logs-item').forEach((el) => el.classList.toggle('is-selected', el.dataset.slug === slug));
+
+  const detail = $('#logs-detail');
+  const empty = $('#logs-detail-empty');
+  if (!slug) { detail.hidden = true; empty.hidden = false; return; }
+  detail.hidden = false; empty.hidden = true;
+
+  const summary = state.agents.find((a) => a.slug === slug);
+  if (summary) fillDetailHead(summary);
+  fetchLogTiles(slug);
+
+  // one live socket at a time — the backend streams ONLY this run, from its first line
+  state.logs.socket = logSocket(slug, appendLogLine, (connected) => {
+    $('#logs-detail').classList.toggle('is-disconnected', !connected);
+  });
+}
+
+function fillDetailHead(a) {
+  $('#ld-name').textContent = a.name;
+  const badge = $('#ld-state');
+  badge.dataset.state = a.state;
+  badge.textContent = capitalize(a.state);
+  const pinned = getPinned().has(a.slug);
+  const pin = $('#ld-pin');
+  pin.classList.toggle('is-pinned', pinned);
+  pin.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+}
+
+/** Fetch the detail endpoint, fill the 4 stat tiles + the subtitle. */
+async function fetchLogTiles(slug) {
+  let d;
+  try { d = await api.getAgent(slug); } catch { return; }
+  if (state.logs.selected !== slug) return;   // selection changed mid-fetch
+  $('#tile-tools').textContent = d.tools_count ?? '—';
+  $('#tile-balance').textContent = d.balance || '—';
+  $('#tile-endpoints').textContent = d.endpoints_announced ?? '—';
+  $('#ld-sub').textContent = shortModel(d.model) || '—';
+}
+
+function appendLogLine({ line }) {
+  const el = $('#ld-console');
+  if (!el) return;
+  const isError = LOG_ERROR_RE.test(line);
+  const div = document.createElement('div');
+  div.className = 'ld-line' + (isError ? ' is-error' : '');
+  if (state.logs.errorsOnly && !isError) div.hidden = true;
+  div.textContent = line || ' ';
+  el.appendChild(div);
+  state.logs.lines += 1;
+  while (el.childElementCount > LOG_LINE_CAP) { el.firstElementChild.remove(); state.logs.lines -= 1; }
+  $('#ld-lines').textContent = `${state.logs.lines} lines`;
+  if (state.logs.following) el.scrollTop = el.scrollHeight;   // Follow logs = stick to newest
+}
+
+function applyErrorsFilter() {
+  const on = state.logs.errorsOnly;
+  document.querySelectorAll('#ld-console .ld-line').forEach((el) => {
+    el.hidden = on && !el.classList.contains('is-error');
+  });
+}
+
+async function revealLogsFolder() {
+  const slug = state.logs.selected;
+  if (!slug) { toast('Select an agent first'); return; }
+  try { await api.revealLogs(slug); }
+  catch (e) { toast(e.message || 'Could not open the folder', 'danger'); }
+}
+
+function openLogsView() {
+  const app = $('#app');
+  if (app.classList.contains('is-settings')) closeSettingsModal();
+  if (app.classList.contains('is-detail')) closeDrawer();
+  renderLogs();
+  app.classList.add('is-logs');
+  setNav('logs');
+}
+
+function closeLogsView() {
+  const app = $('#app');
+  app.classList.remove('is-logs');
+  if (state.logs.socket) { state.logs.socket.close(); state.logs.socket = null; }
+  state.logs.selected = null;
+  $('#logs-list').replaceChildren();
+  $('#ld-console').replaceChildren();
+  $('#logs-search').value = '';
+  setNav('agents');
+  if (app.classList.contains('is-firstrun')) {
+    const fr = $('#firstrun');
+    fr.classList.remove('is-returning'); void fr.offsetWidth; fr.classList.add('is-returning');
+  }
 }
 
 function renderSettings(setup) {
@@ -607,6 +829,7 @@ function setAgents(list) {
   state.agents = list;
   renderAgents();
   updateFleetHeader();
+  if ($('#app').classList.contains('is-logs')) renderLogs();   // add/remove cards as agents start/stop/crash
 
   // keep an open drawer in sync; refetch detail when the state flips
   if (state.drawerSlug) {
@@ -1113,11 +1336,6 @@ function initDrawer() {
     if (state.drawerDetail) copyWithFeedback(e.currentTarget, state.drawerDetail.address);
   });
 
-  $('#d-copy-claude').addEventListener('click', (e) => {
-    e.stopPropagation();   // same content-swap → don't let it bubble to the close-handler
-    if (state.drawerSlug) copyForClaude(state.drawerSlug, e.currentTarget);
-  });
-
   $('#d-toggle').addEventListener('click', () => {
     if (!state.drawerDetail) return;
     const summary = state.agents.find((a) => a.slug === state.drawerSlug);
@@ -1306,6 +1524,32 @@ function revealApp() {
   setTimeout(refitChips, 80);         // cards now have layout → truncate overflowing chips
 }
 
+// ---- update banner (a newer connectonion-studio is on PyPI) ---------
+async function refreshUpdateBanner() {
+  const banner = $('#update-banner');
+  if (!banner) return;
+  let info;
+  try { info = await api.updateStatus(); } catch { return; }   // offline / older backend → leave hidden
+  if (info.update_available && info.latest) {
+    $('#update-ver').textContent = `v${info.latest}`;
+    banner.hidden = false;
+  } else {
+    banner.hidden = true;
+  }
+}
+
+function initUpdateCheck() {
+  const banner = $('#update-banner');
+  if (!banner) return;
+  banner.addEventListener('click', async () => {
+    const cmd = 'pipx upgrade connectonion-studio';
+    const ok = await copyText(cmd);
+    toast(ok ? `Copied “${cmd}” — run it, then restart co-studio` : `Update: run ${cmd}, then restart`);
+  });
+  refreshUpdateBanner();
+  setInterval(refreshUpdateBanner, 3 * 60 * 60 * 1000);   // re-check every 3h (backend caches PyPI hourly)
+}
+
 // ---- boot -----------------------------------------------------------
 async function boot() {
   checkViewport();
@@ -1316,12 +1560,14 @@ async function boot() {
   window.addEventListener('resize', checkViewport);
   window.addEventListener('resize', refitChips);   // re-fit toolkit chips when columns reflow
   initTheme();
+  initAppearance();
   initNav();
   initStorage();
   initSearch();
   initCreateModal();
   initQrModal();
   initDrawer();
+  initUpdateCheck();
 
   $('#app').appendChild($('#toasts'));   // toasts live inside the card, centered at its bottom
   $('#brand-onion').appendChild(createOnion({ size: 42, label: 'ConnectOnion' }));
@@ -1331,6 +1577,7 @@ async function boot() {
     if (e.key !== 'Escape') return;
     closeAllCardMenus();
     if ($('#app').classList.contains('is-settings')) closeSettingsModal();
+    else if ($('#app').classList.contains('is-logs')) closeLogsView();
     else if (!$('#modal-qr').hidden) $('#modal-qr').hidden = true;
     else if ($('#app').classList.contains('is-creating')) closeCreateModal();
     else if ($('#app').classList.contains('is-detail')) closeDrawer();

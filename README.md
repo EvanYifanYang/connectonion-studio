@@ -38,8 +38,8 @@ A native macOS app (SwiftUI + WKWebView) lives in [`macos/`](macos/) — the sam
 |---|---|
 | 🧩 **Create** | Form: name · model · toolkit checkboxes → identity + QR ready instantly |
 | ▶️ **Run** | One process per agent, health-polled every 5 s, live state over WebSocket |
-| 📱 **QR** | Bare `0x` address — scan it in the iOS "Add agent" flow |
-| 📜 **Logs** | Live stdout + framework-logger streams, per agent |
+| 📱 **QR** | Encodes `connectonion://add?address&name&endpoint` — one scan fills all three iOS "Add agent" fields (direct LAN endpoint, bypasses the relay) |
+| 📜 **Logs** | Master–detail cockpit: per-agent live console (this run only), stat tiles, follow / errors-only, reveal-in-Finder |
 | 🩺 **Copy for Claude** | Paste-ready markdown diagnostics bundle, one click |
 | 🗑️ **Delete** | Two-step confirm, then a permanent delete — identity, keys, and logs are removed for good |
 
@@ -62,11 +62,13 @@ A native macOS app (SwiftUI + WKWebView) lives in [`macos/`](macos/) — the sam
 | `POST` | `/api/agents/{slug}/start` · `/stop` · `/restart` | `{"state": …}` |
 | `POST` | `/api/agents/{slug}/rename` | AgentSummary — body `{name}` |
 | `DELETE` | `/api/agents/{slug}` | `204` (stops the agent, then permanently deletes it) |
-| `GET` | `/api/agents/{slug}/qr.svg` | SVG QR |
+| `GET` | `/api/agents/{slug}/qr.svg` | SVG QR of the `connectonion://add` deep link (address · name · endpoint) |
+| `POST` | `/api/agents/{slug}/reveal-logs` | Opens the agent's `runs/` folder in the OS file browser (local) |
 | `GET` | `/api/agents/{slug}/diagnostics` | Markdown bundle |
 | `GET` | `/api/setup/status` | Doctor checks |
+| `GET` | `/api/setup/update` | PyPI update check — `{current, latest, update_available}` |
 | `WS` | `/ws/status` | Status frames (each change + every 5 s) |
-| `WS` | `/ws/agents/{slug}/logs` | `{"source": "stdout" \| "logger", "line": …}` |
+| `WS` | `/ws/agents/{slug}/logs` | `{"source": "stdout", "line": …}` — the current run, from its first line |
 
 </details>
 
@@ -76,9 +78,10 @@ A native macOS app (SwiftUI + WKWebView) lives in [`macos/`](macos/) — the sam
 <br>
 
 ```
-~/.co-studio/agents/<slug>/   meta.json · agent.py · .env · .co/ · studio-stdout.log
+~/.co-studio/agents/<slug>/   meta.json · agent.py · .env · .co/ · runs/<timestamp>.log
 ```
 
+- One stdout log **per run** under `runs/`; the live console (and diagnostics) read only the current run.
 - Agent ports `8000–8099`, allocated by socket probe (busy ports skipped, re-probed at start).
 - `agent.py` is standalone — eject it anywhere and `python agent.py` still works (the announce IP-trim patch is inlined).
 

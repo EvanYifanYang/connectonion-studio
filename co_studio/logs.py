@@ -7,11 +7,39 @@ import re
 from pathlib import Path
 from typing import AsyncIterator, Callable
 
+from . import config
+
 _TAIL_BYTES = 131072
 _RELAY_BAD = ("Relay error", "relay connection error", "relay still unreachable", "Relay disconnected")
 _ANNOUNCE_RE = re.compile(r"\[co-studio\] announce ips=.* endpoints=(\d+)")
 _TOOL_CALL_RE = re.compile(r"▸\s*(\w+)\(")
 _USER_INPUT_RE = re.compile(r'>\s*"')
+_BALANCE_RE = re.compile(r"balance:\s*\$?\s*([\d.]+)")
+
+
+def latest_run_log(agent_dir: Path) -> Path | None:
+    """The current/most-recent per-run stdout file, or the legacy single log as a fallback.
+
+    Per-run files land in <agent_dir>/runs/<timestamp>.log (one per start→stop). Agents that
+    predate per-run logging (or haven't been restarted since) still have the appended
+    studio-stdout.log — returned only when no run files exist, so nothing breaks pre-migration.
+    """
+    run_dir = agent_dir / config.RUNS_DIR_NAME
+    if run_dir.is_dir():
+        runs = sorted(run_dir.glob("*.log"), key=lambda p: p.stat().st_mtime)
+        if runs:
+            return runs[-1]
+    legacy = agent_dir / config.STDOUT_LOG_NAME
+    return legacy if legacy.exists() else None
+
+
+def parse_balance(log_path: Path | None) -> str | None:
+    """Newest 'balance: $X' from the agent's startup banner, formatted as '$X' (None if absent)."""
+    for line in reversed(read_tail(log_path, 400)):
+        match = _BALANCE_RE.search(line)
+        if match:
+            return f"${match.group(1)}"
+    return None
 
 
 def read_tail(path: Path | None, lines: int = 20) -> list[str]:
@@ -91,17 +119,24 @@ def parse_events(lines: list[str], limit: int = 8) -> str | None:
 
 
 async def follow(
-    get_path: Callable[[], Path | None], *, backlog: int = 50, poll: float = 0.5
+    get_path: Callable[[], Path | None], *, from_start: bool = False, backlog: int = 50, poll: float = 0.5
 ) -> AsyncIterator[str]:
-    """Yield a short backlog, then newly appended lines; waits for the file to appear."""
+    """Yield existing content then newly appended lines; waits for the file to appear.
+
+    from_start=True streams the whole file from offset 0 (per-run logs → a run is shown from its
+    very first line); otherwise only the last `backlog` lines precede the live tail.
+    """
     while True:
         path = get_path()
         if path is not None and path.exists():
             break
         await asyncio.sleep(poll)
-    position = path.stat().st_size
-    for line in read_tail(path, backlog):
-        yield line
+    if from_start:
+        position = 0
+    else:
+        position = path.stat().st_size
+        for line in read_tail(path, backlog):
+            yield line
     buffer = b""
     while True:
         size = path.stat().st_size if path.exists() else 0
