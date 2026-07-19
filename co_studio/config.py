@@ -64,7 +64,8 @@ def agent_python() -> str:
     return os.environ.get("CO_STUDIO_PYTHON") or sys.executable
 
 
-STDOUT_LOG_NAME = "studio-stdout.log"
+STDOUT_LOG_NAME = "studio-stdout.log"   # legacy single log (pre-per-run); still read as a fallback
+RUNS_DIR_NAME = "runs"                   # per-run stdout captures: agents/<slug>/runs/<timestamp>.log
 PIDFILE_NAME = "studio.pid"
 
 HEALTH_INTERVAL = 5.0  # seconds between health polls and WS status keepalives

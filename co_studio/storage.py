@@ -63,6 +63,24 @@ def pick_folder() -> str | None:
     return path or None  # non-zero exit == user cancelled → empty stdout
 
 
+def reveal(path: Path) -> bool:
+    """Open a folder in the OS file browser (Finder / Explorer / xdg). Local-only by design —
+    the studio is loopback, so this launches on the user's own machine. False if unsupported."""
+    target = str(Path(path))
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["open", target], check=False)
+        elif os.name == "nt":
+            os.startfile(target)  # type: ignore[attr-defined]  # Windows-only
+        elif shutil.which("xdg-open"):
+            subprocess.run(["xdg-open", target], check=False)
+        else:
+            return False
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return True
+
+
 def _validate(old: Path, new: Path) -> Path:
     """Resolve and sanity-check the requested new location."""
     raw = Path(new).expanduser()

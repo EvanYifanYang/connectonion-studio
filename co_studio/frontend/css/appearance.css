@@ -1,0 +1,104 @@
+/* ============================================================
+   ConnectOnion Studio — "Lavender" appearance  (DEFAULT skin)
+
+   Applied by  <html data-appearance="lavender">, which the inline boot script in
+   index.html sets pre-paint by DEFAULT (and whenever the saved choice isn't "warm").
+   The Settings → Appearance toggle persists the choice in localStorage; picking Warm
+   is the opt-OUT (removes the attribute → base theme.css).
+
+   ISOLATION CONTRACT:
+   - Every THEME rule below is scoped under :root[data-appearance="lavender"].
+     The one exception is the toggle control's own layout (.seg segmented switch),
+     which must render in both skins and is marked UNSCOPED at the bottom.
+   - With the attribute absent (Warm) the theme rules are inert → the base
+     theme.css renders byte-for-byte as before.
+   - theme.css / app.css / onion.css are NOT modified; the entire UI
+     is already token-driven, so this is just a second token set plus
+     a few surface cosmetics (shadowed cards, frosted rail, gradient CTA).
+   - Light-only (no dark variant yet).
+   ============================================================ */
+
+:root[data-appearance="lavender"] {
+  /* surfaces — cool lavender instead of warm parchment */
+  --canvas:    #EDECF6;   /* page + window + sidebar base */
+  --grouped:   #E5E3F0;   /* deeper groove (grouped rows) */
+  --elevated:  #FFFFFF;   /* cards read as bright white glass on lavender */
+  --elevated2: #FFFFFF;   /* brightest inset — inputs, code wells */
+
+  /* the one violet — same hue (shared accent across both appearances) */
+  --accent:      #6E56F2;
+  --accent-soft: rgba(110, 86, 242, 0.12);
+  --on-accent:   #FFFFFF;
+
+  /* cool ink (was warm ink) */
+  --ink:   #2A2A38;
+  --ink-2: rgba(42, 42, 56, 0.66);   /* body copy — AA on --canvas */
+  --ink-3: rgba(42, 42, 56, 0.40);   /* decorative (dots, dividers) */
+
+  /* cooler hairlines + a soft violet-tinted shadow: in this skin cards
+     gain depth from SHADOW (not tone-lift), so define a real --shadow */
+  --hairline:        rgba(72, 62, 128, 0.10);
+  --hairline-strong: rgba(72, 62, 128, 0.20);
+  --glass-bg:        rgba(255, 255, 255, 0.66);
+  --scrim:           rgba(38, 34, 60, 0.34);
+  --shadow: 0 1px 2px rgba(60, 52, 120, 0.05), 0 12px 32px rgba(72, 62, 130, 0.12);
+}
+
+/* page: a soft diagonal lavender wash (was a flat canvas fill) */
+:root[data-appearance="lavender"] body {
+  background: linear-gradient(155deg, #F6F5FC 0%, #EDECF7 52%, #E6E3F1 100%);
+}
+
+/* the window: cooler, deeper float */
+:root[data-appearance="lavender"] #app {
+  box-shadow: 0 20px 60px rgba(70, 60, 130, 0.16);
+}
+
+/* sidebar: frosted glass, a touch brighter than the window */
+:root[data-appearance="lavender"] .sidebar {
+  background: rgba(255, 255, 255, 0.42);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  backdrop-filter: blur(10px) saturate(1.3);
+}
+
+/* cards: white glass with a soft lift — the signature of this look */
+:root[data-appearance="lavender"] .card-front,
+:root[data-appearance="lavender"] .card-back {
+  box-shadow: var(--shadow);
+}
+:root[data-appearance="lavender"] .agent-card:hover .card-front {
+  box-shadow: 0 4px 10px rgba(60, 52, 120, 0.06), 0 18px 44px rgba(72, 62, 130, 0.17);
+}
+
+/* active nav item: a soft lavender pill (Warm keeps it neutral) */
+:root[data-appearance="lavender"] .nav-item.is-active { background: var(--accent-soft); color: var(--accent); }
+:root[data-appearance="lavender"] .nav-item.is-active .nav-ico { color: var(--accent); }
+:root[data-appearance="lavender"] .nav-item.is-active .nav-count { color: var(--accent); }
+
+/* primary buttons: a subtle violet gradient (New Agent, Start, Create) */
+:root[data-appearance="lavender"] .btn-primary {
+  background: linear-gradient(180deg, #7A63FF 0%, #6A4FF0 100%);
+}
+
+/* settings groups + inputs: white on lavender (they already read --elevated) */
+:root[data-appearance="lavender"] .settings-group { box-shadow: 0 1px 2px rgba(60, 52, 120, 0.04), 0 8px 22px rgba(72, 62, 130, 0.08); }
+
+/* ---- UNSCOPED: the Appearance segmented switch (Warm | Lavender) ----
+   The control itself renders in BOTH skins; it only reads the active token set, so the
+   selected pill recolors automatically. A compact left→right toggle (iOS-style: a bright
+   pill slides over a grouped track) instead of two stacked rows — saves vertical space. */
+.appearance-row { align-items: center; }
+.seg {
+  display: inline-flex; gap: 3px; padding: 3px;
+  background: var(--grouped); border: 1px solid var(--hairline); border-radius: 9px;
+}
+.seg-opt { position: relative; display: inline-flex; }
+.seg-opt input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.seg-opt span {
+  display: block; padding: 5px 18px; border-radius: 6px;
+  font-size: 13px; font-weight: 600; color: var(--ink-2);
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.seg-opt input:checked + span { background: var(--elevated); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.seg-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.seg-opt:hover span { color: var(--ink); }

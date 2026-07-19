@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import config, logs, registry, setup_check
+from . import logs, registry, setup_check
 from .registry import AgentMeta
 from .supervisor import SUPERVISOR, fetch_info
 
@@ -22,7 +22,7 @@ def _installed_version() -> str:
 def build(meta: AgentMeta) -> str:
     """One paste-ready markdown bundle with everything Claude needs to debug this agent."""
     agent_dir = registry.agent_dir(meta.slug)
-    stdout_log = agent_dir / config.STDOUT_LOG_NAME
+    stdout_log = SUPERVISOR.current_log_path(meta.slug)   # this run's log (or latest on disk)
     state = SUPERVISOR.state_of(meta.slug)
     endpoints, relay = logs.parse_runtime_signals(stdout_log)
     info = fetch_info(meta.port) if state == "online" else None

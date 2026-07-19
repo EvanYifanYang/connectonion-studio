@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/css/theme.css">
   <link rel="stylesheet" href="/css/onion.css">
   <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/appearance.css">
   <script>
     // Native-shell mode: the macOS app loads this page as `…/?desktop=1`.
     // Flip `html.desktop` SYNCHRONOUSLY here (parser-blocking, before first paint)
@@ -22,6 +23,13 @@
     if (new URLSearchParams(location.search).has('desktop')) {
       document.documentElement.classList.add('desktop');
     }
+    // Appearance skin (Settings → Appearance). DEFAULT is Lavender: apply the saved choice —
+    // or the Lavender default when nothing is saved — here, pre-paint, so there's never a flash
+    // of the wrong skin. Only an explicit "warm" turns the skin OFF (Warm is the base theme.css).
+    try {
+      const ap = localStorage.getItem('co-studio-appearance') || 'lavender';
+      if (ap !== 'warm') document.documentElement.dataset.appearance = ap;
+    } catch (_) { document.documentElement.dataset.appearance = 'lavender'; }   // storage off → still Lavender
   </script>
 </head>
 <body>
@@ -89,7 +97,13 @@
           <span class="nav-label">Agents</span>
           <span class="nav-count" id="nav-agents-count"></span>
         </a>
-        <a class="nav-item" id="open-settings" role="button" tabindex="0">
+        <a class="nav-item" id="open-logs" data-view="logs" role="button" tabindex="0">
+          <span class="nav-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+          </span>
+          <span class="nav-label">Logs</span>
+        </a>
+        <a class="nav-item" id="open-settings" data-view="settings" role="button" tabindex="0">
           <span class="nav-ico" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
           </span>
@@ -99,6 +113,19 @@
 
       <div class="sidebar-foot">
         <div id="doctor-banner" class="doctor-banner" hidden></div>
+        <button id="update-banner" class="update-banner" type="button" hidden
+                title="A newer version is on PyPI — click to copy the upgrade command">
+          <span class="update-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+          </span>
+          <span class="update-body">
+            <span class="update-title">Update available</span>
+            <span class="update-ver" id="update-ver"></span>
+          </span>
+          <span class="update-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </span>
+        </button>
         <a class="side-powered" href="https://openonion.ai/" target="_blank" rel="noopener">Powered by OpenOnion</a>
       </div>
     </aside>
@@ -260,6 +287,22 @@
       <h2 id="settings-title">Settings</h2>
       <div class="settings-panel">
         <div class="settings-group">
+          <h3>Appearance</h3>
+          <div class="set-row appearance-row">
+            <span class="k">Theme</span>
+            <div class="seg" role="radiogroup" aria-label="Appearance">
+              <label class="seg-opt">
+                <input type="radio" name="appearance" value="warm">
+                <span>Warm</span>
+              </label>
+              <label class="seg-opt">
+                <input type="radio" name="appearance" value="lavender" checked>
+                <span>Lavender</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="settings-group">
           <h3>Storage</h3>
           <div class="set-row storage-row" id="storage-view">
             <span class="k">Agents folder</span>
@@ -293,6 +336,70 @@
           <p class="set-about">A local cockpit to build, run, and test agents with <b>ConnectOnion</b>, the open-source Python agent framework. <a href="https://github.com/EvanYifanYang/connectonion-studio" target="_blank" rel="noopener">Studio on GitHub</a> · <a href="https://github.com/openonion/connectonion" target="_blank" rel="noopener">ConnectOnion on GitHub</a></p>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- logs — one live console per running agent; swaps into the content pane like settings -->
+  <div id="logs-view" hidden>
+    <header class="content-head">
+      <div class="head-titles">
+        <h1>Logs</h1>
+        <p class="page-subtitle" id="logs-subtitle"></p>
+      </div>
+      <div class="head-actions"></div>
+    </header>
+    <div class="logs-body">
+      <!-- master: the running-agent list -->
+      <aside class="logs-master">
+        <div class="logs-master-head">Running Agents <span id="logs-count">(0)</span></div>
+        <div class="search-box logs-search-box">
+          <span class="search-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </span>
+          <input id="logs-search" type="text" placeholder="Search agents…"
+                 autocomplete="off" spellcheck="false" aria-label="Search running agents">
+        </div>
+        <div id="logs-list" class="logs-list" role="listbox" aria-label="Running agents"></div>
+        <p id="logs-empty" class="logs-empty" hidden>No running agents.<br>Press <b>Start</b> on an agent to stream its live logs here.</p>
+      </aside>
+
+      <!-- detail: the selected agent -->
+      <section class="logs-detail" id="logs-detail" hidden>
+        <header class="ld-head">
+          <span class="ld-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg></span>
+          <div class="ld-titles">
+            <div class="ld-name-row"><h2 id="ld-name"></h2><span id="ld-state" class="state-badge"></span></div>
+            <p class="ld-sub" id="ld-sub"></p>
+          </div>
+          <div class="ld-head-btns">
+            <button class="ld-hbtn" id="logs-reveal" type="button" title="Reveal this agent's logs folder in Finder" aria-label="Reveal logs folder in Finder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+            </button>
+            <button class="ld-hbtn" id="ld-pin" type="button" title="Pin this agent" aria-label="Pin this agent" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="ld-tiles">
+          <div class="ld-tile"><span class="ld-tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><div class="ld-tile-txt"><span class="ld-tile-k">Tools</span><span class="ld-tile-v" id="tile-tools">—</span></div></div>
+          <div class="ld-tile"><span class="ld-tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><div class="ld-tile-txt"><span class="ld-tile-k">Balance</span><span class="ld-tile-v" id="tile-balance">—</span></div></div>
+          <div class="ld-tile"><span class="ld-tile-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" x2="15.4" y1="13.5" y2="17.5"/><line x1="15.4" x2="8.6" y1="6.5" y2="10.5"/></svg></span><div class="ld-tile-txt"><span class="ld-tile-k">Endpoints</span><span class="ld-tile-v" id="tile-endpoints">—</span></div></div>
+        </div>
+
+        <div class="ld-console" id="ld-console" role="log" aria-live="polite"></div>
+
+        <div class="ld-foot">
+          <label class="ld-toggle">Follow logs<input type="checkbox" id="ld-follow" checked><span class="ld-switch" aria-hidden="true"></span></label>
+          <span class="ld-lines" id="ld-lines">0 lines</span>
+          <span class="ld-foot-spacer"></span>
+          <button class="btn btn-sm ld-btn" id="ld-errors" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Errors only</button>
+          <button class="btn btn-sm ld-btn ld-copy-soft" id="ld-copy" type="button"
+                  title="Copy a paste-ready debug bundle for Claude: address, config, recent errors and logs. No keys."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy diagnostics</button>
+        </div>
+      </section>
+
+      <div class="logs-detail-empty" id="logs-detail-empty">Select an agent to watch its live logs.</div>
     </div>
   </div>
 
@@ -334,12 +441,6 @@
 
         <div class="detail-groups" id="d-info"></div>
         <div id="d-last-error" class="detail-error" hidden></div>
-
-        <button id="d-copy-claude" class="btn btn-outline detail-diag"
-                title="Copies a paste-ready debug bundle — address, config, recent errors & logs. No keys.">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-          Copy diagnostics
-        </button>
 
         <div class="detail-actions">
           <div class="detail-actions-main">

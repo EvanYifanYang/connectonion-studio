@@ -11,6 +11,7 @@ import time
 import urllib.request
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import Path
 
 from . import config, logs, ports, registry
 from .registry import AgentMeta
@@ -47,6 +48,7 @@ class ProcRecord:
     started_at: float = 0.0
     stop_requested: bool = False
     last_error: str | None = None
+    log_path: Path | None = None   # this run's stdout capture (runs/<timestamp>.log)
 
 
 class Supervisor:
@@ -92,6 +94,18 @@ class Supervisor:
         record = self._records.get(slug)
         return record.last_error if record else None
 
+    def current_log_path(self, slug: str) -> Path | None:
+        """This run's stdout file (or the most-recent run on disk when untracked)."""
+        record = self._records.get(slug)
+        if record and record.log_path:
+            return record.log_path
+        return logs.latest_run_log(registry.agent_dir(slug))
+
+    def started_at_of(self, slug: str) -> float | None:
+        """Epoch seconds when this run started, or None when not running."""
+        record = self._records.get(slug)
+        return record.started_at if record and record.started_at else None
+
     def forget(self, slug: str) -> None:
         """Drop tracking for a deleted agent."""
         if self._records.pop(slug, None) is not None:
@@ -107,7 +121,8 @@ class Supervisor:
             verdict = await asyncio.to_thread(self._probe, meta.port, meta.address)
             if verdict == "online":  # already serving (adopted or started outside the studio)
                 self._records[meta.slug] = ProcRecord(
-                    pid=self._read_pid(meta.slug), state="online", started_at=time.time()
+                    pid=self._read_pid(meta.slug), state="online", started_at=time.time(),
+                    log_path=logs.latest_run_log(registry.agent_dir(meta.slug)),
                 )
                 self._notify()
                 return "online"
@@ -117,10 +132,16 @@ class Supervisor:
                     meta.port = ports.allocate(reserved)
                     registry.save(meta)
             agent_dir = registry.agent_dir(meta.slug)
+            # One fresh log file per start (runs/<timestamp>.log) so the live view shows ONLY this
+            # run and every start→stop is kept for the Finder history. Second-granularity is fine:
+            # a stop→start within the same second is the only collision and just shares one file.
+            runs_dir = agent_dir / config.RUNS_DIR_NAME
+            runs_dir.mkdir(exist_ok=True)
+            log_path = runs_dir / f"{time.strftime('%Y%m%d-%H%M%S')}.log"
             # Reuse (not a new name) so this override MASKS any CO_STUDIO_PORT the user exported for the
             # studio's own port — each agent always gets its own port here, never the studio's.
             env = {**os.environ, "CO_STUDIO_PORT": str(meta.port)}
-            with open(agent_dir / config.STDOUT_LOG_NAME, "ab") as stdout:
+            with open(log_path, "ab") as stdout:
                 popen = subprocess.Popen(  # noqa: S603 — our own generated script
                     # config.agent_python() == sys.executable everywhere except a frozen build; under
                     # the bundled relocatable interpreter it IS the embedded python, so agents spawn
@@ -134,7 +155,7 @@ class Supervisor:
                 )
             (agent_dir / config.PIDFILE_NAME).write_text(str(popen.pid))
             self._records[meta.slug] = ProcRecord(
-                pid=popen.pid, popen=popen, state="starting", started_at=time.time()
+                pid=popen.pid, popen=popen, state="starting", started_at=time.time(), log_path=log_path
             )
             self._notify()
             return "starting"
@@ -165,7 +186,10 @@ class Supervisor:
             if pid is None:
                 continue
             if self._pid_alive(pid):
-                self._records[meta.slug] = ProcRecord(pid=pid, state="starting", started_at=time.time())
+                self._records[meta.slug] = ProcRecord(
+                    pid=pid, state="starting", started_at=time.time(),
+                    log_path=logs.latest_run_log(registry.agent_dir(meta.slug)),
+                )
             else:
                 self._remove_pidfile(meta.slug)
 
@@ -205,7 +229,7 @@ class Supervisor:
 
     def _crash_reason(self, slug: str, record: ProcRecord) -> str:
         """Best crash explanation: last traceback from stdout, else the exit code."""
-        tail = logs.read_tail(registry.agent_dir(slug) / config.STDOUT_LOG_NAME, 400)
+        tail = logs.read_tail(self.current_log_path(slug), 400)
         traceback = logs.find_last_traceback(tail)
         if traceback:
             return traceback

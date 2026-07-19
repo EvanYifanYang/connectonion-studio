@@ -52,9 +52,11 @@ export const stopAgent    = (slug) => request('POST', `${slugPath(slug)}/stop`);
 export const restartAgent = (slug) => request('POST', `${slugPath(slug)}/restart`);
 export const renameAgent  = (slug, name) => request('POST', `${slugPath(slug)}/rename`, { name });
 export const deleteAgent  = (slug) => request('DELETE', slugPath(slug));
+export const revealLogs   = (slug) => request('POST', `${slugPath(slug)}/reveal-logs`);
 
 // -- setup / settings -----------------------------------------
 export const setupStatus = () => request('GET', '/api/setup/status');
+export const updateStatus = () => request('GET', '/api/setup/update');
 export const setStorage  = (path) => request('POST', '/api/settings/storage', { path });
 export const pickFolder  = () => request('POST', '/api/settings/pick-folder');
 
