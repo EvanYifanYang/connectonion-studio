@@ -9,15 +9,22 @@ from pathlib import Path
 
 from connectonion import Agent, host
 from connectonion.useful_plugins import auto_compact
+from co_studio.sandbox import configure_process_environment
 
 AGENT_DIR = Path(__file__).resolve().parent
 CO_DIR = AGENT_DIR / ".co"
+WORK_DIR_VALUE = ${WORK_DIR_LITERAL}
+WORK_DIR = Path(WORK_DIR_VALUE).expanduser().resolve() if WORK_DIR_VALUE else AGENT_DIR / "workspace"
+RUNTIME_DIR = CO_DIR / "runtime"
 NAME = ${NAME_LITERAL}
 MODEL = ${MODEL_LITERAL}
 PORT = int(os.environ.get("CO_STUDIO_PORT", "${PORT}"))
 CAPABILITIES = ${CAPABILITIES_LITERAL}
 SYSTEM_PROMPT = ${SYSTEM_PROMPT_LITERAL}
 TRUST = ${TRUST_LITERAL}   # who may connect: "open" | "careful" | "strict"
+
+WORK_DIR.mkdir(parents=True, exist_ok=True)
+configure_process_environment(WORK_DIR, RUNTIME_DIR)
 
 
 def _patch_get_ips() -> None:
@@ -52,7 +59,7 @@ def _patch_get_ips() -> None:
 try:
     from co_studio.toolkits import resolve as _resolve_toolkits
 except ImportError:  # ejected standalone run without connectonion-studio installed
-    def _resolve_toolkits(names: list) -> tuple:
+    def _resolve_toolkits(names: list, **_kwargs) -> tuple:
         return [], []
 
     if CAPABILITIES:
@@ -65,7 +72,7 @@ except ImportError:  # ejected standalone run without connectonion-studio instal
 
 def create_agent() -> Agent:
     """Fresh Agent per request — host() calls this for per-request isolation."""
-    tools, plugins = _resolve_toolkits(CAPABILITIES)
+    tools, plugins = _resolve_toolkits(CAPABILITIES, work_dir=WORK_DIR, runtime_dir=RUNTIME_DIR)
     plugins = [*plugins, auto_compact]
     agent = Agent(
         name=NAME,

@@ -31,6 +31,8 @@ class AgentMeta:
     trust: str = "open"   # who may connect: open | careful | strict (default keeps old agents valid)
     preset: str = "custom"   # custom | co-ai (default keeps old agents valid)
     invite_code: str | None = None
+    # None means agents/<slug>/workspace, so the default follows storage-folder moves.
+    work_dir: str | None = None
 
     @property
     def toolkits(self) -> list[str]:

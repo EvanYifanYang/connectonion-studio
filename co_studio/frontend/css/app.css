@@ -859,6 +859,13 @@ fieldset.toolkits { border: none; margin: 0 0 14px; padding: 0; }
 .co-ai-warning { background: var(--danger-soft); }
 .co-ai-warning .tk-ico { background: var(--elevated); color: var(--danger); }
 .co-ai-code-field { margin-top: 14px; }
+.workspace-field { margin-top: 16px; }
+.workspace-row { display: flex; align-items: stretch; gap: 8px; }
+.workspace-row input { flex: 1 1 auto; min-width: 0; }
+.workspace-row .btn { flex: none; padding: 10px 14px; }
+.workspace-field > small {
+  display: block; margin: 6px 2px 0; color: var(--ink-3); font-size: 11.5px; line-height: 1.4;
+}
 #create-view.stacked #f-template-help { display: none; }
 .tk-accent { color: var(--accent); }
 .toolkit-optional-label { font-size: 11.5px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.03em; margin: 0 2px 9px; }

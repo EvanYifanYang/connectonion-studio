@@ -59,6 +59,7 @@ export const setupStatus = () => request('GET', '/api/setup/status');
 export const updateStatus = () => request('GET', '/api/setup/update');
 export const setStorage  = (path) => request('POST', '/api/settings/storage', { path });
 export const pickFolder  = () => request('POST', '/api/settings/pick-folder');
+export const pickWorkspace = () => request('POST', '/api/settings/pick-workspace');
 export const setAppearance = (appearance) => request('POST', '/api/settings/appearance', { appearance });
 
 export async function fetchDiagnostics(slug) {

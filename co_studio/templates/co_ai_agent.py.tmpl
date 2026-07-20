@@ -9,15 +9,23 @@ from pathlib import Path
 
 from connectonion import host
 from connectonion.cli.co_ai.agent import create_coding_agent
+from co_studio.sandbox import configure_process_environment, sandbox_coding_agent
 
 AGENT_DIR = Path(__file__).resolve().parent
 CO_DIR = AGENT_DIR / ".co"
+WORK_DIR_VALUE = ${WORK_DIR_LITERAL}
+WORK_DIR = Path(WORK_DIR_VALUE).expanduser().resolve() if WORK_DIR_VALUE else AGENT_DIR / "workspace"
+RUNTIME_DIR = CO_DIR / "runtime"
 NAME = ${NAME_LITERAL}
 MODEL = ${MODEL_LITERAL}
 PORT = int(os.environ.get("CO_STUDIO_PORT", "${PORT}"))
 TRUST_POLICY = ${TRUST_POLICY_LITERAL}
 
+WORK_DIR.mkdir(parents=True, exist_ok=True)
+configure_process_environment(WORK_DIR, RUNTIME_DIR)
+
 
 if __name__ == "__main__":
     agent = create_coding_agent(model=MODEL, co_dir=CO_DIR)
+    sandbox_coding_agent(agent, WORK_DIR, RUNTIME_DIR)
     host(agent, port=PORT, trust=TRUST_POLICY, co_dir=CO_DIR)

@@ -13,7 +13,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import config, logs, ports, registry
+from . import config, logs, ports, registry, workspaces
 from .registry import AgentMeta
 
 # Spawn each agent in its OWN process group so we can tear it (and any children) down as a
@@ -132,6 +132,20 @@ class Supervisor:
                     meta.port = ports.allocate(reserved)
                     registry.save(meta)
             agent_dir = registry.agent_dir(meta.slug)
+            try:
+                work_dir = workspaces.ensure(
+                    meta,
+                    require_write=meta.preset == "co-ai" or any(
+                        capability in {"file-write", "shell", "browser"}
+                        for capability in meta.capabilities
+                    ),
+                )
+            except ValueError as exc:
+                self._records[meta.slug] = ProcRecord(
+                    state="crashed", last_error=str(exc)
+                )
+                self._notify()
+                return "crashed"
             # One fresh log file per start (runs/<timestamp>.log) so the live view shows ONLY this
             # run and every start→stop is kept for the Finder history. Second-granularity is fine:
             # a stop→start within the same second is the only collision and just shares one file.
@@ -140,14 +154,18 @@ class Supervisor:
             log_path = runs_dir / f"{time.strftime('%Y%m%d-%H%M%S')}.log"
             # Reuse (not a new name) so this override MASKS any CO_STUDIO_PORT the user exported for the
             # studio's own port — each agent always gets its own port here, never the studio's.
-            env = {**os.environ, "CO_STUDIO_PORT": str(meta.port)}
+            env = {
+                **os.environ,
+                "CO_STUDIO_PORT": str(meta.port),
+                "CO_STUDIO_WORK_DIR": str(work_dir),
+            }
             with open(log_path, "ab") as stdout:
                 popen = subprocess.Popen(  # noqa: S603 — our own generated script
                     # config.agent_python() == sys.executable everywhere except a frozen build; under
                     # the bundled relocatable interpreter it IS the embedded python, so agents spawn
                     # against a real interpreter that can import connectonion — no re-exec needed.
                     [config.agent_python(), str(config.RUNNER_PATH), str(agent_dir / "agent.py")],
-                    cwd=agent_dir,  # framework logs/sessions are cwd-relative
+                    cwd=work_dir,  # project context and relative tool paths are workspace-relative
                     env=env,
                     stdout=stdout,
                     stderr=subprocess.STDOUT,

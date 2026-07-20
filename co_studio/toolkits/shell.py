@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 
-def tools() -> list[Any]:
-    """The framework's bash tool."""
-    from connectonion import useful_tools
+def tools(*, work_dir: str | Path, runtime_dir: str | Path | None = None) -> list[Any]:
+    """A bash tool confined to the Agent workspace by the host OS."""
+    from co_studio.sandbox import SandboxedShell
 
-    return [useful_tools.bash]
+    runtime = Path(runtime_dir or Path(work_dir) / ".co-studio-runtime")
+    return [SandboxedShell(work_dir, runtime)]
 
 
 def plugins() -> list[Any]:

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
-from .. import config, creator, diagnostics, identity, logs, registry, storage
+from .. import config, creator, diagnostics, identity, logs, registry, storage, workspaces
 from ..registry import AgentMeta
 from ..supervisor import SUPERVISOR, fetch_info
 
@@ -23,6 +23,7 @@ class CreateAgentBody(BaseModel):
     trust: str = "open"
     preset: str = "custom"
     invite_code: str | None = None
+    work_dir: str | None = None
 
 
 def summarize(meta: AgentMeta) -> dict[str, object]:
@@ -40,6 +41,7 @@ def summarize(meta: AgentMeta) -> dict[str, object]:
         "state": SUPERVISOR.state_of(meta.slug),
         "started_at": SUPERVISOR.started_at_of(meta.slug),   # epoch secs → "12s ago" in the UI
         "created_at": meta.created_at,
+        "work_dir": str(workspaces.effective_work_dir(meta)),
     }
 
 
@@ -89,6 +91,7 @@ def create_agent(body: CreateAgentBody) -> dict[str, object]:
             body.trust,
             preset=body.preset,
             invite_code=body.invite_code,
+            work_dir=body.work_dir,
         )
     except ValueError as exc:  # invalid capability, preset, trust policy, or invite code
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -136,6 +139,7 @@ def rename_agent(slug: str, body: RenameBody) -> dict[str, object]:
                 meta.trust,
                 preset=meta.preset,
                 invite_code=meta.invite_code,
+                work_dir=meta.work_dir,
             )
         )
     return summarize(meta)

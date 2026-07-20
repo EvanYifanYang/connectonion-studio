@@ -53,6 +53,15 @@ def pick_folder() -> dict[str, str]:
     return {"path": path}
 
 
+@router.post("/pick-workspace")
+def pick_workspace() -> dict[str, str]:
+    """Choose a project/workspace folder for one Agent."""
+    path = storage.pick_folder("Choose this Agent's workspace")
+    if not path:
+        raise HTTPException(status_code=409, detail="No folder chosen.")
+    return {"path": path}
+
+
 @router.post("/storage")
 async def set_storage(body: StorageBody) -> dict[str, object]:
     """Move existing agents to a new folder and switch the studio over to it."""

@@ -937,6 +937,13 @@ const selectedCapabilities = () => [
   'utility',
   ...document.querySelectorAll('#create-form input[name="capability"]:checked'),
 ].map((item) => typeof item === 'string' ? item : item.value);
+const workspaceNeeded = () => isCoAiTemplate()
+  || selectedCapabilities().some((name) => ['files', 'file-write', 'shell', 'browser'].includes(name));
+
+function syncWorkspaceField() {
+  $('#f-work-dir-wrap').hidden = !workspaceNeeded();
+  if (!wizardStacked && wizardStep === 4 && $('#app').classList.contains('is-creating')) paintWizard(true);
+}
 
 function customAccessPolicy() {
   const tier = Math.max(...selectedCapabilities().map((name) => CAPABILITY_RISK[name] || 0));
@@ -1039,6 +1046,7 @@ function syncTemplateFields({ resetModel = false } = {}) {
     : 'A lightweight agent with the capabilities you choose.';
   $('#create-view').classList.toggle('is-co-ai', coAi);
   syncCustomAccess();
+  syncWorkspaceField();
   if (resetModel) {
     $('#f-model').value = 'co/gemini-3.5-flash';
     $('#f-model-custom-wrap').hidden = true;
@@ -1183,6 +1191,7 @@ function initCreateModal() {
       if (checkbox.checked && checkbox.value === 'file-write') $('#create-form input[value="files"]').checked = false;
       if (checkbox.checked && checkbox.value === 'files') $('#create-form input[value="file-write"]').checked = false;
       syncCustomAccess();
+      syncWorkspaceField();
     });
   });
   document.querySelectorAll('#create-form input[name="standard-access"]').forEach((radio) => {
@@ -1196,6 +1205,15 @@ function initCreateModal() {
     $('#f-model-custom-wrap').hidden = !custom;
     if (!wizardStacked) paintWizard(true);   // wizard: re-fit the step height (stacked just flows)
     if (custom) $('#f-model-custom').focus();
+  });
+  $('#f-work-dir-pick').addEventListener('click', async () => {
+    try {
+      const { path } = await api.pickWorkspace();
+      $('#f-work-dir').value = path;
+      $('#create-error').hidden = true;
+    } catch (err) {
+      if (err.status !== 409) toast(err.message || 'Could not choose the workspace', 'danger');
+    }
   });
   // live name check: clear the error and re-flag ✓/✕ as they type
   $('#f-name').addEventListener('input', () => {
@@ -1235,6 +1253,7 @@ function initCreateModal() {
     const invite_code = coAi
       ? $('#f-invite-code').value.trim()
       : policy.inviteOnly ? $('#f-custom-invite-code').value.trim() : null;
+    const work_dir = workspaceNeeded() ? ($('#f-work-dir').value.trim() || null) : null;
 
     if (!name) { errEl.textContent = 'Give the agent a name.'; errEl.hidden = false; if (!wizardStacked) goWizard(0); return; }
     if (!model) { errEl.textContent = 'Pick or type a model.'; errEl.hidden = false; if (!wizardStacked) goWizard(2); return; }
@@ -1248,7 +1267,7 @@ function initCreateModal() {
     submit.disabled = true;
     submit.textContent = 'Creating…';
     try {
-      const detail = await api.createAgent({ name, model, capabilities, trust, preset, invite_code });
+      const detail = await api.createAgent({ name, model, capabilities, trust, preset, invite_code, work_dir });
       closeCreateModal();
       await refreshAgents();
       toast(`${detail.name} created — QR ready. Press Start to bring it online.`);
@@ -1383,6 +1402,7 @@ function renderDrawerFields(detail) {
   ]));
   const paths = [];
   if (detail.script_path) paths.push(['Script', copyableValue(detail.script_path)]);
+  if (detail.work_dir) paths.push(['Workspace', copyableValue(detail.work_dir)]);
   if (detail.co_dir) paths.push(['co_dir', copyableValue(detail.co_dir)]);
   if (paths.length) info.appendChild(detailGroup('Paths', paths));
   info.appendChild(detailGroup('Identity', [

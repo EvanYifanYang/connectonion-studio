@@ -96,7 +96,8 @@ class CapabilityPolicyTests(unittest.TestCase):
         self.assertIn("default: deny", rendered)
         self.assertIn("agent.tools.remove(\"wait_for_manual_login\")", rendered)
         self.assertIn("Side-effecting commands require explicit approval", rendered)
-        self.assertIn("File operations are not workspace-sandboxed yet", rendered)
+        self.assertIn("All file operations are confined to this Agent's workspace", rendered)
+        self.assertIn("work_dir=WORK_DIR, runtime_dir=RUNTIME_DIR", rendered)
         compile(rendered, "agent.py", "exec")
 
 

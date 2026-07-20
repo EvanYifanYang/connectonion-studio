@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 
-def tools() -> list[Any]:
-    """A stateful read-only FileTools bundle: read_file, glob and grep."""
-    from connectonion import useful_tools
+def tools(*, work_dir: str | Path, runtime_dir: str | Path | None = None) -> list[Any]:
+    """A workspace-confined read-only bundle: read_file, glob and grep."""
+    from co_studio.sandbox import SandboxedFileTools
 
-    return [useful_tools.FileTools(permission="read")]
+    return [SandboxedFileTools(work_dir, permission="read")]
 
 
 def plugins() -> list[Any]:

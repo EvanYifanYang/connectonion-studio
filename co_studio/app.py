@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import config, registry, setup_check
+from . import config, creator, registry, setup_check
 from .api import agents, settings_api, setup, ws
 from .supervisor import SUPERVISOR
 
@@ -46,6 +46,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     migrated = registry.migrate_capability_aliases()
     if migrated:
         print(f"[co-studio] metadata compatibility updated for {migrated} agent(s)", flush=True)
+    refreshed = creator.refresh_generated_workspace_scripts()
+    if refreshed:
+        print(f"[co-studio] workspace sandbox updated for {refreshed} agent(s)", flush=True)
     # Best-effort, on a daemon thread so the server binds immediately AND a slow first-run auth
     # call can never delay shutdown. The key lands within a few seconds; the onboarding screen
     # (2s poll) dismisses itself once /api/setup/status flips to key_ok.

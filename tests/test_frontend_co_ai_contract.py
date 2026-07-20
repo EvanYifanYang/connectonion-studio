@@ -26,9 +26,15 @@ class CoAiWizardContractTests(unittest.TestCase):
 
     def test_create_payload_includes_preset_and_invite_code(self) -> None:
         self.assertIn(
-            "api.createAgent({ name, model, capabilities, trust, preset, invite_code })",
+            "api.createAgent({ name, model, capabilities, trust, preset, invite_code, work_dir })",
             JS,
         )
+
+    def test_coding_templates_offer_a_workspace_picker(self) -> None:
+        self.assertIn('id="f-work-dir"', HTML)
+        self.assertIn('id="f-work-dir-pick"', HTML)
+        self.assertIn("api.pickWorkspace()", JS)
+        self.assertIn("const work_dir = workspaceNeeded()", JS)
 
     def test_template_help_is_one_line_in_steps_and_hidden_when_stacked(self) -> None:
         self.assertIn("A lightweight agent with the capabilities you choose.", HTML)

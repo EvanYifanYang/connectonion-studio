@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib import import_module
+from pathlib import Path
 from typing import Any
 
 
@@ -45,7 +46,7 @@ PROMPT_GUIDES: dict[str, str] = {
     "file-write": """### Local file editing
 - Read an existing file before changing it. Use edit or multi_edit for precise changes and write for new files.
 - Preserve surrounding style, keep changes scoped to the request, and report a write only after the tool confirms it.
-- File operations are not workspace-sandboxed yet, so treat every path as sensitive and avoid unrelated files.""",
+- All file operations are confined to this Agent's workspace. Paths outside it are unavailable.""",
     "shell": """### Shell commands
 - Prefer the dedicated file tools for reading, searching and writing files; use bash for commands that need a shell.
 - Quote paths containing spaces and keep commands narrowly scoped. Side-effecting commands require explicit approval.
@@ -85,13 +86,23 @@ def prompt_guides(names: list[str]) -> str:
     return "\n\n".join(PROMPT_GUIDES[name] for name in validate(names) if name in PROMPT_GUIDES)
 
 
-def resolve(names: list[str]) -> tuple[list[Any], list[Any]]:
+def resolve(
+    names: list[str],
+    *,
+    work_dir: str | Path | None = None,
+    runtime_dir: str | Path | None = None,
+) -> tuple[list[Any], list[Any]]:
     """Build tools/plugins for selected capabilities without duplicate plugin bundles."""
     tools: list[Any] = []
     plugins: list[Any] = []
+    root = Path(work_dir or Path.cwd()).expanduser().resolve()
+    runtime = Path(runtime_dir or root / ".co-studio-runtime").expanduser().resolve()
     for name in validate(names):
         module = import_module(f".{CATALOG[name].module}", __package__)
-        tools.extend(module.tools())
+        if name in {"files", "file-write", "shell", "browser"}:
+            tools.extend(module.tools(work_dir=root, runtime_dir=runtime))
+        else:
+            tools.extend(module.tools())
         for plugin in module.plugins():
             if not any(plugin is existing for existing in plugins):
                 plugins.append(plugin)

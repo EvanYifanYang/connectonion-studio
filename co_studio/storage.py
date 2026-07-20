@@ -25,7 +25,7 @@ def current() -> str:
     return str(config.AGENTS_DIR)
 
 
-def _picker_command() -> list[str] | None:
+def _picker_command(prompt: str = "Choose a folder for your agents") -> list[str] | None:
     """The native "choose folder" command for this OS, or None if none is available.
 
     Runs on the user's own machine (the studio is loopback-only), so the OS dialog is
@@ -35,24 +35,24 @@ def _picker_command() -> list[str] | None:
     """
     if sys.platform == "darwin":
         return ["osascript", "-e",
-                'POSIX path of (choose folder with prompt "Choose a folder for your agents")']
+                f'POSIX path of (choose folder with prompt "{prompt}")']
     if os.name == "nt":
         ps = (
             "Add-Type -AssemblyName System.Windows.Forms;"
             "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
-            "$d.Description = 'Choose a folder for your agents';"
+            f"$d.Description = '{prompt}';"
             "if ($d.ShowDialog() -eq 'OK') { [Console]::Out.Write($d.SelectedPath) }"
         )
         return ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps]
     if shutil.which("zenity"):  # most Linux desktops
         return ["zenity", "--file-selection", "--directory",
-                "--title=Choose a folder for your agents"]
+                f"--title={prompt}"]
     return None
 
 
-def pick_folder() -> str | None:
+def pick_folder(prompt: str = "Choose a folder for your agents") -> str | None:
     """Pop the native folder chooser for this OS; return the path (None if cancelled/unavailable)."""
-    command = _picker_command()
+    command = _picker_command(prompt)
     if command is None:
         return None
     try:

@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 
-def tools() -> list[Any]:
-    """Full FileTools bundle with read-before-edit and stale-read protection."""
-    from connectonion import useful_tools
+def tools(*, work_dir: str | Path, runtime_dir: str | Path | None = None) -> list[Any]:
+    """Workspace-confined file tools with read-before-edit and stale-read protection."""
+    from co_studio.sandbox import SandboxedFileTools
 
-    return [useful_tools.FileTools()]
+    return [SandboxedFileTools(work_dir)]
 
 
 def plugins() -> list[Any]:
