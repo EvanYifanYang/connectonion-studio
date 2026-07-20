@@ -36,3 +36,10 @@ macos/ConnectOnionStudio/build-check/
 
 # local release guide (not for GitHub)
 /RELEASING.md
+
+# ── Secrets: NEVER commit / push ──
+# Sparkle EdDSA signing PRIVATE KEY (release-signing secret). Authoritative copy lives in the
+# login Keychain; the file here is only a convenience backup. Bare name → matches in any dir.
+sparkle_private_key.txt
+*.private_key
+*.private.key
