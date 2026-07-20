@@ -69,7 +69,7 @@ export async function copyForClaude(slug, btn) {
     return false;
   }
   const ok = await copyText(bundle);
-  flash(btn, ok ? 'Copied — paste into Claude' : 'Clipboard blocked — copy manually');
+  flash(btn, ok ? 'Copied' : 'Clipboard blocked');
   return ok;
 }
 
