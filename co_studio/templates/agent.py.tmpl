@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 from connectonion import Agent, host
+from connectonion.useful_plugins import auto_compact
 
 AGENT_DIR = Path(__file__).resolve().parent
 CO_DIR = AGENT_DIR / ".co"
@@ -65,6 +66,7 @@ except ImportError:  # ejected standalone run without connectonion-studio instal
 def create_agent() -> Agent:
     """Fresh Agent per request — host() calls this for per-request isolation."""
     tools, plugins = _resolve_toolkits(TOOLKITS)
+    plugins = [*plugins, auto_compact]
     return Agent(name=NAME, system_prompt=SYSTEM_PROMPT, tools=tools, plugins=plugins, model=MODEL)
 
 
