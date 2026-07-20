@@ -9,7 +9,7 @@ import string
 
 from . import config, identity, ports, registry
 from .registry import AgentMeta
-from .toolkits import HINTS, validate
+from .toolkits import HINTS, prompt_guides, required_trust, requires_invite, validate
 
 
 DEFAULT_MODEL = "co/gemini-3.5-flash"
@@ -31,10 +31,11 @@ def _unique_slug(name: str) -> str:
     return candidate
 
 
-def _system_prompt(name: str, toolkits: list[str]) -> str:
-    """Compose a clear, general-purpose assistant contract from its toolkits."""
-    abilities = "; ".join(HINTS[t] for t in toolkits) or "plain conversation"
-    return f"""You are {name}, a capable general-purpose assistant.
+def _system_prompt(name: str, capabilities: list[str]) -> str:
+    """Compose a general contract plus operating guidance for selected capabilities."""
+    abilities = "; ".join(HINTS[t] for t in capabilities) or "plain conversation"
+    guide = prompt_guides(capabilities)
+    prompt = f"""You are {name}, a capable general-purpose assistant.
 
 Available capabilities: {abilities}.
 
@@ -53,6 +54,7 @@ Available capabilities: {abilities}.
 - Use an available tool when it provides evidence or completes the request more reliably.
 - Do not claim a tool action succeeded unless its result confirms success.
 - Explain tool results in user-facing language, without exposing internal implementation details."""
+    return f"{prompt}\n\n{guide}" if guide else prompt
 
 
 TRUST_LEVELS = ("open", "careful", "strict")
@@ -83,8 +85,15 @@ def validate_invite_code(invite_code: str | None) -> str:
     return code
 
 
-def _co_ai_trust_policy(invite_code: str) -> str:
-    """Deny-by-default policy for a full coding agent."""
+def validate_required_invite_code(invite_code: str | None) -> str:
+    """Validate an explicitly supplied code for sensitive Custom Agent capabilities."""
+    if invite_code is None or not invite_code.strip():
+        raise ValueError("invite code is required for sensitive or dangerous capabilities")
+    return validate_invite_code(invite_code)
+
+
+def _invite_trust_policy(invite_code: str, *, subject: str = "agent") -> str:
+    """Deny-by-default policy shared by co-ai and sensitive Custom Agents."""
     return (
         "---\n"
         "allow: [whitelisted, contact]\n"
@@ -93,8 +102,27 @@ def _co_ai_trust_policy(invite_code: str) -> str:
         f"  invite_code: [{invite_code}]\n"
         "default: deny\n"
         "---\n"
-        "Only clients admitted with the configured invite code may use this coding agent."
+        f"Only clients admitted with the configured invite code may use this {subject}."
     )
+
+
+def normalize_custom_policy(
+    capabilities: list[str],
+    invite_code: str | None,
+    *,
+    require_explicit_code: bool,
+) -> tuple[list[str], str, str | None]:
+    """Canonicalize capabilities and derive the only access policy they may use.
+
+    New clients must explicitly supply a code. Existing metadata and the legacy
+    ``toolkits`` API can be upgraded with Studio's historical default code.
+    """
+    selection = validate(capabilities)
+    trust = required_trust(selection)
+    if not requires_invite(selection):
+        return selection, trust, None
+    validator = validate_required_invite_code if require_explicit_code else validate_invite_code
+    return selection, trust, validator(invite_code)
 
 
 def render(
@@ -117,9 +145,13 @@ def render(
             NAME_LITERAL=repr(name),
             MODEL_LITERAL=repr(model),
             PORT=str(port),
-            TRUST_POLICY_LITERAL=repr(_co_ai_trust_policy(code)),
+            TRUST_POLICY_LITERAL=repr(_invite_trust_policy(code, subject="coding agent")),
         )
 
+    selection, forced_trust, code = normalize_custom_policy(
+        toolkits, invite_code, require_explicit_code=False
+    )
+    trust_policy = _invite_trust_policy(code, subject="agent") if code else forced_trust
     template = string.Template(config.TEMPLATE_PATH.read_text())
     return template.substitute(
         # DOC_NAME lands RAW inside a """...""" docstring, so collapse whitespace and
@@ -128,9 +160,9 @@ def render(
         NAME_LITERAL=repr(name),
         MODEL_LITERAL=repr(model),
         PORT=str(port),
-        TOOLKITS_LITERAL=repr(list(toolkits)),
-        SYSTEM_PROMPT_LITERAL=repr(_system_prompt(name, toolkits)),
-        TRUST_LITERAL=repr(trust),
+        CAPABILITIES_LITERAL=repr(selection),
+        SYSTEM_PROMPT_LITERAL=repr(_system_prompt(name, selection)),
+        TRUST_LITERAL=repr(trust_policy),
     )
 
 
@@ -150,9 +182,9 @@ def create(
         trust = "strict"
         invite_code = validate_invite_code(invite_code)
     else:
-        selection = validate(toolkits)
-        trust = validate_trust(trust)
-        invite_code = None
+        selection, trust, invite_code = normalize_custom_policy(
+            toolkits, invite_code, require_explicit_code=True
+        )
     with registry.locked():
         slug = _unique_slug(name)
         agent_dir = registry.agent_dir(slug)
@@ -179,7 +211,7 @@ def create(
             address=address,
             port=port,
             model=model,
-            toolkits=selection,
+            capabilities=selection,
             created_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             trust=trust,
             preset=preset,

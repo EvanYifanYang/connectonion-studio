@@ -26,11 +26,16 @@ class AgentMeta:
     address: str
     port: int
     model: str
-    toolkits: list[str]
+    capabilities: list[str]
     created_at: str
     trust: str = "open"   # who may connect: open | careful | strict (default keeps old agents valid)
     preset: str = "custom"   # custom | co-ai (default keeps old agents valid)
     invite_code: str | None = None
+
+    @property
+    def toolkits(self) -> list[str]:
+        """Legacy read alias for integrations built before capabilities were named."""
+        return self.capabilities
 
 
 def ensure_dirs() -> None:
@@ -74,6 +79,8 @@ def load(slug: str) -> AgentMeta | None:
         data = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return None
+    if "capabilities" not in data and "toolkits" in data:
+        data["capabilities"] = data["toolkits"]
     known = {f.name for f in dataclasses.fields(AgentMeta)}
     return AgentMeta(**{k: v for k, v in data.items() if k in known})
 

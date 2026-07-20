@@ -1,4 +1,4 @@
-"""Shell toolkit: bash execution gated by the shell_approval plugin (Approval card)."""
+"""Dangerous capability: shell execution gated by the unified approval protocol."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ def tools() -> list[Any]:
 
 
 def plugins() -> list[Any]:
-    """shell_approval — every non-safe command asks the user before running."""
+    """Use the same approval/runtime-input graph as the framework's co-ai agent."""
     from connectonion import useful_plugins
 
-    return [useful_plugins.shell_approval]
+    return [useful_plugins.tool_approval, useful_plugins.runtime_input]

@@ -63,6 +63,7 @@ class CoAiRegistryTests(unittest.TestCase):
                 meta = registry.load("old-agent")
 
             self.assertIsNotNone(meta)
+            self.assertEqual(meta.capabilities, ["utility"])
             self.assertEqual(meta.preset, "custom")
             self.assertIsNone(meta.invite_code)
 

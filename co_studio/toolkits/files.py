@@ -1,4 +1,4 @@
-"""Files toolkit: read-only local file access."""
+"""Sensitive capability: read and search local files without write methods."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ from typing import Any
 
 
 def tools() -> list[Any]:
-    """The framework's read_file tool."""
+    """A stateful read-only FileTools bundle: read_file, glob and grep."""
     from connectonion import useful_tools
 
-    return [useful_tools.read_file]
+    return [useful_tools.FileTools(permission="read")]
 
 
 def plugins() -> list[Any]:

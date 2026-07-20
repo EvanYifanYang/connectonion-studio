@@ -18,7 +18,8 @@ class CreateAgentBody(BaseModel):
 
     name: str = Field(min_length=1, max_length=80)
     model: str = creator.DEFAULT_MODEL
-    toolkits: list[str] = ["utility"]
+    capabilities: list[str] | None = None
+    toolkits: list[str] | None = None  # deprecated request alias
     trust: str = "open"
     preset: str = "custom"
     invite_code: str | None = None
@@ -32,7 +33,8 @@ def summarize(meta: AgentMeta) -> dict[str, object]:
         "address": meta.address,
         "port": meta.port,
         "model": meta.model,
-        "toolkits": meta.toolkits,
+        "capabilities": meta.capabilities,
+        "toolkits": meta.capabilities,  # deprecated response alias for older Studio clients
         "trust": meta.trust,
         "preset": meta.preset,
         "state": SUPERVISOR.state_of(meta.slug),
@@ -79,15 +81,23 @@ def list_agents() -> dict[str, object]:
 def create_agent(body: CreateAgentBody) -> dict[str, object]:
     """Create identity + QR-ready agent directory; does NOT start the process."""
     try:
+        capabilities = body.capabilities if body.capabilities is not None else body.toolkits or ["utility"]
+        invite_code = body.invite_code
+        if body.capabilities is None and body.toolkits is not None:
+            # Older clients had no Custom Agent invite field. Upgrade their sensitive
+            # selection to invite-only using the same visible default used by Studio.
+            _, _, invite_code = creator.normalize_custom_policy(
+                capabilities, invite_code, require_explicit_code=False
+            )
         meta = creator.create(
             body.name,
             body.model,
-            body.toolkits,
+            capabilities,
             body.trust,
             preset=body.preset,
-            invite_code=body.invite_code,
+            invite_code=invite_code,
         )
-    except ValueError as exc:  # unknown toolkit or trust level
+    except ValueError as exc:  # invalid capability, preset, trust policy, or invite code
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:  # port range exhausted
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -116,6 +126,10 @@ def rename_agent(slug: str, body: RenameBody) -> dict[str, object]:
     with registry.locked():
         meta = _get_meta(slug)
         meta.name = name
+        if meta.preset == "custom":
+            meta.capabilities, meta.trust, meta.invite_code = creator.normalize_custom_policy(
+                meta.capabilities, meta.invite_code, require_explicit_code=False
+            )
         registry.save(meta)
         agent_dir = registry.agent_dir(slug)
         (agent_dir / "agent.py").write_text(
@@ -123,7 +137,7 @@ def rename_agent(slug: str, body: RenameBody) -> dict[str, object]:
                 name,
                 meta.model,
                 meta.port,
-                meta.toolkits,
+                meta.capabilities,
                 meta.trust,
                 preset=meta.preset,
                 invite_code=meta.invite_code,
