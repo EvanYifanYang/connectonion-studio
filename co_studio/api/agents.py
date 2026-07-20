@@ -82,20 +82,13 @@ def create_agent(body: CreateAgentBody) -> dict[str, object]:
     """Create identity + QR-ready agent directory; does NOT start the process."""
     try:
         capabilities = body.capabilities if body.capabilities is not None else body.toolkits or ["utility"]
-        invite_code = body.invite_code
-        if body.capabilities is None and body.toolkits is not None:
-            # Older clients had no Custom Agent invite field. Upgrade their sensitive
-            # selection to invite-only using the same visible default used by Studio.
-            _, _, invite_code = creator.normalize_custom_policy(
-                capabilities, invite_code, require_explicit_code=False
-            )
         meta = creator.create(
             body.name,
             body.model,
             capabilities,
             body.trust,
             preset=body.preset,
-            invite_code=invite_code,
+            invite_code=body.invite_code,
         )
     except ValueError as exc:  # invalid capability, preset, trust policy, or invite code
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -128,7 +121,7 @@ def rename_agent(slug: str, body: RenameBody) -> dict[str, object]:
         meta.name = name
         if meta.preset == "custom":
             meta.capabilities, meta.trust, meta.invite_code = creator.normalize_custom_policy(
-                meta.capabilities, meta.invite_code, require_explicit_code=False
+                meta.capabilities, meta.invite_code, requested_trust=meta.trust
             )
         registry.save(meta)
         agent_dir = registry.agent_dir(slug)

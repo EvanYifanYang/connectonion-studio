@@ -20,6 +20,7 @@ class CoAiWizardContractTests(unittest.TestCase):
     def test_co_ai_access_has_invite_code_and_no_toolkit_step(self) -> None:
         self.assertIn('value="co-ai"', HTML)
         self.assertIn('id="f-invite-code"', HTML)
+        self.assertNotIn('value="developer"', HTML)
         self.assertIn("isCoAiTemplate() ? [0, 1, 2, 4]", JS)
         self.assertIn("$('#create-toolkit-step').hidden = coAi", JS)
 

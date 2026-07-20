@@ -9,7 +9,7 @@ import string
 
 from . import config, identity, ports, registry
 from .registry import AgentMeta
-from .toolkits import HINTS, prompt_guides, required_trust, requires_invite, validate
+from .toolkits import HINTS, prompt_guides, required_trust, validate
 
 
 DEFAULT_MODEL = "co/gemini-3.5-flash"
@@ -59,7 +59,6 @@ Available capabilities: {abilities}.
 
 TRUST_LEVELS = ("open", "careful", "strict")
 PRESETS = ("custom", "co-ai")
-DEFAULT_CO_AI_INVITE_CODE = "developer"
 _INVITE_CODE_RE = re.compile(r"[A-Za-z0-9_-]{4,64}")
 
 
@@ -78,18 +77,13 @@ def validate_preset(preset: str) -> str:
 
 
 def validate_invite_code(invite_code: str | None) -> str:
-    """Return a policy-safe co-ai invite code."""
-    code = (invite_code or DEFAULT_CO_AI_INVITE_CODE).strip()
+    """Return an explicitly supplied, policy-safe invite code."""
+    if invite_code is None or not invite_code.strip():
+        raise ValueError("invite code is required for invite-only access")
+    code = invite_code.strip()
     if not _INVITE_CODE_RE.fullmatch(code):
         raise ValueError("invite code must be 4-64 letters, numbers, hyphens, or underscores")
     return code
-
-
-def validate_required_invite_code(invite_code: str | None) -> str:
-    """Validate an explicitly supplied code for sensitive Custom Agent capabilities."""
-    if invite_code is None or not invite_code.strip():
-        raise ValueError("invite code is required for sensitive or dangerous capabilities")
-    return validate_invite_code(invite_code)
 
 
 def _invite_trust_policy(invite_code: str, *, subject: str = "agent") -> str:
@@ -110,19 +104,26 @@ def normalize_custom_policy(
     capabilities: list[str],
     invite_code: str | None,
     *,
-    require_explicit_code: bool,
+    requested_trust: str = "open",
 ) -> tuple[list[str], str, str | None]:
-    """Canonicalize capabilities and derive the only access policy they may use.
-
-    New clients must explicitly supply a code. Existing metadata and the legacy
-    ``toolkits`` API can be upgraded with Studio's historical default code.
-    """
+    """Derive access from capability minimums plus the user's optional invite choice."""
     selection = validate(capabilities)
-    trust = required_trust(selection)
-    if not requires_invite(selection):
+    requested_trust = validate_trust(requested_trust)
+    minimum_trust = required_trust(selection)
+    supplied_code = bool(invite_code and invite_code.strip())
+
+    if minimum_trust == "strict":
+        trust = "strict"
+    elif minimum_trust == "careful":
+        trust = "careful"
+    else:
+        # Standard capabilities may remain open or opt into the least restrictive
+        # invite-only policy. A supplied code is itself an explicit invite-only choice.
+        trust = "careful" if requested_trust != "open" or supplied_code else "open"
+
+    if trust == "open":
         return selection, trust, None
-    validator = validate_required_invite_code if require_explicit_code else validate_invite_code
-    return selection, trust, validator(invite_code)
+    return selection, trust, validate_invite_code(invite_code)
 
 
 def render(
@@ -149,7 +150,7 @@ def render(
         )
 
     selection, forced_trust, code = normalize_custom_policy(
-        toolkits, invite_code, require_explicit_code=False
+        toolkits, invite_code, requested_trust=trust
     )
     trust_policy = _invite_trust_policy(code, subject="agent") if code else forced_trust
     template = string.Template(config.TEMPLATE_PATH.read_text())
@@ -183,7 +184,7 @@ def create(
         invite_code = validate_invite_code(invite_code)
     else:
         selection, trust, invite_code = normalize_custom_policy(
-            toolkits, invite_code, require_explicit_code=True
+            toolkits, invite_code, requested_trust=trust
         )
     with registry.locked():
         slug = _unique_slug(name)

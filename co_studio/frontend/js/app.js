@@ -922,14 +922,18 @@ const selectedCapabilities = () => [
 
 function customAccessPolicy() {
   const tier = Math.max(...selectedCapabilities().map((name) => CAPABILITY_RISK[name] || 0));
-  if (tier === 2) return { tier, trust: 'strict', title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter this code once before using powerful capabilities.', note: 'This Agent can change local or external state. File changes and side-effecting shell commands may ask for approval; Browser control is protected at connection time.' };
-  if (tier === 1) return { tier, trust: 'careful', title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter this code once before reading local files.', note: 'Approval is remembered for this device and this Agent only.' };
-  return { tier, trust: 'open', title: 'Open access', badge: 'Open', copy: 'Anyone with this Agent address can connect.', note: 'Public capabilities do not read or change local data.' };
+  if (tier === 2) return { tier, trust: 'strict', inviteOnly: true, title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter this code once before using powerful capabilities.', note: 'This Agent can change local or external state. File changes and side-effecting shell commands may ask for approval; Browser control is protected at connection time.' };
+  if (tier === 1) return { tier, trust: 'careful', inviteOnly: true, title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter this code once before reading local files.', note: 'Approval is remembered for this device and this Agent only.' };
+  if ($('#f-standard-access-invite').checked) return { tier, trust: 'careful', inviteOnly: true, title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter this code once before connecting.', note: 'Standard capabilities do not read or change local data. Approval is remembered for this device and this Agent only.' };
+  return { tier, trust: 'open', inviteOnly: false, title: 'Open access', badge: 'Open', copy: 'Anyone with this Agent address can connect.', note: 'Standard capabilities do not read or change local data.' };
 }
 
 function syncCustomAccess() {
   const policy = customAccessPolicy();
   const summary = $('#f-custom-access-summary');
+  const standard = policy.tier === 0;
+  $('#f-standard-access-options').hidden = !standard;
+  summary.hidden = standard;
   summary.dataset.risk = policy.trust;
   $('#f-custom-access-title').textContent = policy.title;
   $('#f-custom-access-copy').textContent = policy.copy;
@@ -937,7 +941,7 @@ function syncCustomAccess() {
   const badge = $('#f-custom-access-badge');
   badge.textContent = policy.badge;
   badge.className = `risk-badge ${policy.tier === 0 ? 'is-safe' : policy.tier === 1 ? 'is-careful' : 'is-strict'}`;
-  $('#f-custom-invite-wrap').hidden = policy.tier === 0;
+  $('#f-custom-invite-wrap').hidden = !policy.inviteOnly;
   if (!wizardStacked && wizardStep === 4 && $('#app').classList.contains('is-creating')) paintWizard(true);
   return policy;
 }
@@ -1070,13 +1074,20 @@ function validateStep(n) {
     const coAi = isCoAiTemplate();
     const policy = customAccessPolicy();
     const code = coAi ? $('#f-invite-code').value.trim() : $('#f-custom-invite-code').value.trim();
-    if (!coAi && policy.tier === 0) return true;
-    if (!/^[A-Za-z0-9_-]{4,64}$/.test(code)) {
-      errEl.textContent = 'Use 4–64 letters, numbers, hyphens, or underscores for the invite code.';
+    if (!coAi && !policy.inviteOnly) return true;
+    const codeError = inviteCodeError(code);
+    if (codeError) {
+      errEl.textContent = codeError;
       errEl.hidden = false; return false;
     }
   }
   return true;
+}
+
+function inviteCodeError(code) {
+  if (!code) return 'Create an invite code before continuing.';
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(code)) return 'Use 4–64 letters, numbers, hyphens, or underscores for the invite code.';
+  return '';
 }
 
 let wizardStacked = false;
@@ -1154,6 +1165,12 @@ function initCreateModal() {
       syncCustomAccess();
     });
   });
+  document.querySelectorAll('#create-form input[name="standard-access"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      $('#create-error').hidden = true;
+      syncCustomAccess();
+    });
+  });
   $('#f-model').addEventListener('change', (e) => {
     const custom = e.target.value === '__custom';
     $('#f-model-custom-wrap').hidden = !custom;
@@ -1197,12 +1214,13 @@ function initCreateModal() {
     const trust = coAi ? 'strict' : policy.trust;
     const invite_code = coAi
       ? $('#f-invite-code').value.trim()
-      : policy.tier > 0 ? $('#f-custom-invite-code').value.trim() : null;
+      : policy.inviteOnly ? $('#f-custom-invite-code').value.trim() : null;
 
     if (!name) { errEl.textContent = 'Give the agent a name.'; errEl.hidden = false; if (!wizardStacked) goWizard(0); return; }
     if (!model) { errEl.textContent = 'Pick or type a model.'; errEl.hidden = false; if (!wizardStacked) goWizard(2); return; }
-    if ((coAi || policy.tier > 0) && !/^[A-Za-z0-9_-]{4,64}$/.test(invite_code)) {
-      errEl.textContent = 'Use 4–64 letters, numbers, hyphens, or underscores for the invite code.';
+    const codeError = coAi || policy.inviteOnly ? inviteCodeError(invite_code) : '';
+    if (codeError) {
+      errEl.textContent = codeError;
       errEl.hidden = false; if (!wizardStacked) goWizard(4); return;
     }
 

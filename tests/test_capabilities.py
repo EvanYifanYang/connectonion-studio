@@ -60,11 +60,20 @@ class CapabilityPolicyTests(unittest.TestCase):
                 invite_code=invite_code,
             )
 
-    def test_safe_capabilities_override_client_trust_and_store_no_code(self) -> None:
+    def test_standard_capabilities_allow_open_or_invite_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            meta = self._create(Path(tmp), ["utility", "web"], "should-be-discarded", trust="strict")
-        self.assertEqual(meta.trust, "open")
-        self.assertIsNone(meta.invite_code)
+            root = Path(tmp)
+            open_meta = self._create(root, ["utility", "web"], None)
+            invite_meta = self._create(root, ["utility", "image"], "standard-team", trust="careful")
+        self.assertEqual(open_meta.trust, "open")
+        self.assertIsNone(open_meta.invite_code)
+        self.assertEqual(invite_meta.trust, "careful")
+        self.assertEqual(invite_meta.invite_code, "standard-team")
+        selection, trust, code = creator.normalize_custom_policy(
+            ["utility", "web"], "code-means-invite"
+        )
+        self.assertEqual(selection, ["utility", "web"])
+        self.assertEqual((trust, code), ("careful", "code-means-invite"))
 
     def test_reading_requires_code_and_forces_careful(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -119,13 +128,9 @@ class CapabilityCompatibilityTests(unittest.TestCase):
         self.assertEqual(modern.capabilities, ["utility", "files"])
         self.assertEqual(legacy.toolkits, ["utility", "web"])
 
-    def test_legacy_sensitive_selection_gets_default_invite_upgrade(self) -> None:
-        selection, trust, code = creator.normalize_custom_policy(
-            ["utility", "files"], None, require_explicit_code=False
-        )
-        self.assertEqual(selection, ["utility", "files"])
-        self.assertEqual(trust, "careful")
-        self.assertEqual(code, creator.DEFAULT_CO_AI_INVITE_CODE)
+    def test_sensitive_selection_never_gets_a_default_invite_code(self) -> None:
+        with self.assertRaisesRegex(ValueError, "invite code is required"):
+            creator.normalize_custom_policy(["utility", "files"], None)
 
 
 if __name__ == "__main__":

@@ -41,6 +41,12 @@ class CoAiRenderingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invite code"):
             creator.validate_invite_code("developer\ndefault: allow")
 
+    def test_co_ai_requires_an_explicit_invite_code(self) -> None:
+        with self.assertRaisesRegex(ValueError, "invite code is required"):
+            creator.render(
+                "Coder", "co/gemini-3.5-flash", 8001, [], "strict", preset="co-ai"
+            )
+
 
 class CoAiRegistryTests(unittest.TestCase):
     def test_old_metadata_defaults_to_custom(self) -> None:
