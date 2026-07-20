@@ -28,6 +28,8 @@ class CapabilityWizardContractTests(unittest.TestCase):
         self.assertIn('.toolkit-option[data-access="optional"] .tk-ico', CSS)
         self.assertIn('.toolkit-option[data-access="required"] .tk-ico', CSS)
         self.assertIn(".toolkits-grid .toolkit-option small { white-space: nowrap", CSS)
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))", CSS)
+        self.assertIn(".toolkits-grid .toolkit-option { min-width: 0;", CSS)
         self.assertNotIn(">Strict</span>", HTML)
         self.assertNotIn(">Invite</span>", HTML)
 

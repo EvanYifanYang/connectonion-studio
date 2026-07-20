@@ -8,6 +8,12 @@ import { fetchDiagnostics } from './api.js';
 
 /** Clipboard write with a legacy fallback. Returns true on success. */
 export async function copyText(text) {
+  // WKWebView's Clipboard API can reject even a user-initiated copy after an awaited fetch.
+  // The native shell owns the system pasteboard, so use its narrow bridge when available.
+  if (window.__coStudio?.copyText) {
+    window.__coStudio.copyText(text);
+    return true;
+  }
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);

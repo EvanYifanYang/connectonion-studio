@@ -883,8 +883,8 @@ fieldset.toolkits { border: none; margin: 0 0 14px; padding: 0; }
 .capability-group-head small { margin-left: 4px; font-size: 11px; font-weight: 500; color: var(--ink); white-space: nowrap; }
 .capability-group[data-access="optional"] .capability-group-head h4 i { background: #4a9f68; }
 .capability-group[data-access="required"] .capability-group-head h4 i { background: var(--danger); }
-.toolkits-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
-.toolkits-grid .toolkit-option { min-height: 58px; margin-bottom: 0; align-items: center; }
+.toolkits-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.toolkits-grid .toolkit-option { min-width: 0; min-height: 58px; margin-bottom: 0; align-items: center; }
 .toolkits-grid .toolkit-option small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Access (trust level) — radio cards */
