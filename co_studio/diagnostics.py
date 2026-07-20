@@ -39,7 +39,7 @@ def build(meta: AgentMeta) -> str:
         f"## Agent: {meta.name}",
         f"- address: {meta.address}   port: {meta.port}   state: {state}",
         f"- relay: {_RELAY_LABEL[relay]}{endpoints_note}",
-        f"- model: {meta.model}   toolkits: {', '.join(meta.toolkits)}   framework: connectonion {version}",
+        f"- model: {meta.model}   template: {meta.preset}   toolkits: {', '.join(meta.toolkits)}   framework: connectonion {version}",
         f"- script: {agent_dir / 'agent.py'}",
         f"- co_dir: {agent_dir / '.co'}",
         "",

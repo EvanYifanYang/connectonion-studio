@@ -20,6 +20,8 @@ class CreateAgentBody(BaseModel):
     model: str = "co/gemini-2.5-flash"
     toolkits: list[str] = ["utility"]
     trust: str = "open"
+    preset: str = "custom"
+    invite_code: str | None = None
 
 
 def summarize(meta: AgentMeta) -> dict[str, object]:
@@ -32,6 +34,7 @@ def summarize(meta: AgentMeta) -> dict[str, object]:
         "model": meta.model,
         "toolkits": meta.toolkits,
         "trust": meta.trust,
+        "preset": meta.preset,
         "state": SUPERVISOR.state_of(meta.slug),
         "started_at": SUPERVISOR.started_at_of(meta.slug),   # epoch secs → "12s ago" in the UI
         "created_at": meta.created_at,
@@ -54,6 +57,7 @@ def detail(meta: AgentMeta) -> dict[str, object]:
         "tools_count": len(tools) if isinstance(tools, list) else None,   # stat tile
         "balance": logs.parse_balance(log_path),                          # stat tile ($X or None)
         "last_error": SUPERVISOR.last_error_of(meta.slug),
+        "invite_code": meta.invite_code,
     }
 
 
@@ -75,7 +79,14 @@ def list_agents() -> dict[str, object]:
 def create_agent(body: CreateAgentBody) -> dict[str, object]:
     """Create identity + QR-ready agent directory; does NOT start the process."""
     try:
-        meta = creator.create(body.name, body.model, body.toolkits, body.trust)
+        meta = creator.create(
+            body.name,
+            body.model,
+            body.toolkits,
+            body.trust,
+            preset=body.preset,
+            invite_code=body.invite_code,
+        )
     except ValueError as exc:  # unknown toolkit or trust level
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:  # port range exhausted
@@ -108,7 +119,15 @@ def rename_agent(slug: str, body: RenameBody) -> dict[str, object]:
         registry.save(meta)
         agent_dir = registry.agent_dir(slug)
         (agent_dir / "agent.py").write_text(
-            creator.render(name, meta.model, meta.port, meta.toolkits, meta.trust)
+            creator.render(
+                name,
+                meta.model,
+                meta.port,
+                meta.toolkits,
+                meta.trust,
+                preset=meta.preset,
+                invite_code=meta.invite_code,
+            )
         )
     return summarize(meta)
 

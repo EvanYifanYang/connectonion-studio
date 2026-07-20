@@ -29,6 +29,8 @@ class AgentMeta:
     toolkits: list[str]
     created_at: str
     trust: str = "open"   # who may connect: open | careful | strict (default keeps old agents valid)
+    preset: str = "custom"   # custom | co-ai (default keeps old agents valid)
+    invite_code: str | None = None
 
 
 def ensure_dirs() -> None:

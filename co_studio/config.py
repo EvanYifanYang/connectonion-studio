@@ -44,6 +44,7 @@ KEYS_ENV = MAIN_CO_DIR / "keys.env"
 PACKAGE_DIR = Path(__file__).resolve().parent
 RUNNER_PATH = PACKAGE_DIR / "runner" / "co_studio_runner.py"
 TEMPLATE_PATH = PACKAGE_DIR / "templates" / "agent.py.tmpl"
+CO_AI_TEMPLATE_PATH = PACKAGE_DIR / "templates" / "co_ai_agent.py.tmpl"
 FRONTEND_DIR = PACKAGE_DIR / "frontend"  # bundled inside the package so it ships in the wheel
 
 

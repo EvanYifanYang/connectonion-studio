@@ -39,6 +39,9 @@ def _system_prompt(name: str, toolkits: list[str]) -> str:
 
 
 TRUST_LEVELS = ("open", "careful", "strict")
+PRESETS = ("custom", "co-ai")
+DEFAULT_CO_AI_INVITE_CODE = "developer"
+_INVITE_CODE_RE = re.compile(r"[A-Za-z0-9_-]{4,64}")
 
 
 def validate_trust(trust: str) -> str:
@@ -48,8 +51,58 @@ def validate_trust(trust: str) -> str:
     return trust
 
 
-def render(name: str, model: str, port: int, toolkits: list[str], trust: str) -> str:
+def validate_preset(preset: str) -> str:
+    """Ensure the requested Studio template is supported."""
+    if preset not in PRESETS:
+        raise ValueError(f"unknown preset: {preset!r} (expected one of {', '.join(PRESETS)})")
+    return preset
+
+
+def validate_invite_code(invite_code: str | None) -> str:
+    """Return a policy-safe co-ai invite code."""
+    code = (invite_code or DEFAULT_CO_AI_INVITE_CODE).strip()
+    if not _INVITE_CODE_RE.fullmatch(code):
+        raise ValueError("invite code must be 4-64 letters, numbers, hyphens, or underscores")
+    return code
+
+
+def _co_ai_trust_policy(invite_code: str) -> str:
+    """Deny-by-default policy for a full coding agent."""
+    return (
+        "---\n"
+        "allow: [whitelisted, contact]\n"
+        "deny: [blocked]\n"
+        "onboard:\n"
+        f"  invite_code: [{invite_code}]\n"
+        "default: deny\n"
+        "---\n"
+        "Only clients admitted with the configured invite code may use this coding agent."
+    )
+
+
+def render(
+    name: str,
+    model: str,
+    port: int,
+    toolkits: list[str],
+    trust: str,
+    *,
+    preset: str = "custom",
+    invite_code: str | None = None,
+) -> str:
     """Render agent.py from the template (the get_ips patch is inlined by the template itself)."""
+    preset = validate_preset(preset)
+    if preset == "co-ai":
+        code = validate_invite_code(invite_code)
+        template = string.Template(config.CO_AI_TEMPLATE_PATH.read_text())
+        return template.substitute(
+            DOC_NAME=" ".join(name.split()).replace("\\", "").replace('"', "'"),
+            NAME_LITERAL=repr(name),
+            MODEL_LITERAL=repr(model),
+            PORT=str(port),
+            TRUST_POLICY_LITERAL=repr(_co_ai_trust_policy(code)),
+        )
+
     template = string.Template(config.TEMPLATE_PATH.read_text())
     return template.substitute(
         # DOC_NAME lands RAW inside a """...""" docstring, so collapse whitespace and
@@ -64,10 +117,25 @@ def render(name: str, model: str, port: int, toolkits: list[str], trust: str) ->
     )
 
 
-def create(name: str, model: str, toolkits: list[str], trust: str = "open") -> AgentMeta:
+def create(
+    name: str,
+    model: str,
+    toolkits: list[str],
+    trust: str = "open",
+    *,
+    preset: str = "custom",
+    invite_code: str | None = None,
+) -> AgentMeta:
     """Create an agent directory with identity + QR-ready address; does NOT start it."""
-    selection = validate(toolkits)
-    trust = validate_trust(trust)
+    preset = validate_preset(preset)
+    if preset == "co-ai":
+        selection = []
+        trust = "strict"
+        invite_code = validate_invite_code(invite_code)
+    else:
+        selection = validate(toolkits)
+        trust = validate_trust(trust)
+        invite_code = None
     with registry.locked():
         slug = _unique_slug(name)
         agent_dir = registry.agent_dir(slug)
@@ -77,7 +145,17 @@ def create(name: str, model: str, toolkits: list[str], trust: str = "open") -> A
         address = identity.create(agent_dir / ".co")
         if config.KEYS_ENV.exists():  # this is how the co/gemini model key flows to the agent
             shutil.copy(config.KEYS_ENV, agent_dir / ".env")
-        (agent_dir / "agent.py").write_text(render(name, model, port, selection, trust))
+        (agent_dir / "agent.py").write_text(
+            render(
+                name,
+                model,
+                port,
+                selection,
+                trust,
+                preset=preset,
+                invite_code=invite_code,
+            )
+        )
         meta = AgentMeta(
             slug=slug,
             name=name,
@@ -87,6 +165,8 @@ def create(name: str, model: str, toolkits: list[str], trust: str = "open") -> A
             toolkits=selection,
             created_at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             trust=trust,
+            preset=preset,
+            invite_code=invite_code,
         )
         registry.save(meta)
     return meta
