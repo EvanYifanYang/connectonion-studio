@@ -12,6 +12,9 @@ from .registry import AgentMeta
 from .toolkits import HINTS, validate
 
 
+DEFAULT_MODEL = "co/gemini-3.5-flash"
+
+
 def slugify(name: str) -> str:
     """Lowercase, hyphenated, filesystem-safe slug ("Kitchen Sink!" → "kitchen-sink")."""
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")

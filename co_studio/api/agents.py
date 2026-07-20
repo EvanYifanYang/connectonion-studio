@@ -17,7 +17,7 @@ class CreateAgentBody(BaseModel):
     """POST /api/agents payload."""
 
     name: str = Field(min_length=1, max_length=80)
-    model: str = "co/gemini-2.5-flash"
+    model: str = creator.DEFAULT_MODEL
     toolkits: list[str] = ["utility"]
     trust: str = "open"
     preset: str = "custom"

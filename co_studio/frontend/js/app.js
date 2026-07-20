@@ -979,7 +979,7 @@ function syncTemplateFields({ resetModel = false } = {}) {
     : 'A lightweight agent with the capabilities you choose.';
   $('#create-view').classList.toggle('is-co-ai', coAi);
   if (resetModel) {
-    $('#f-model').value = coAi ? 'co/gemini-3.5-flash' : 'co/gemini-2.5-flash';
+    $('#f-model').value = 'co/gemini-3.5-flash';
     $('#f-model-custom-wrap').hidden = true;
   }
   if (coAi && wizardStep === 3) wizardStep = 4;
