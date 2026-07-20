@@ -21,6 +21,10 @@ class CapabilityWizardContractTests(unittest.TestCase):
             self.assertIn(f'data-risk="{level}"', HTML)
             self.assertIn(f"is-{level}", HTML)
         self.assertIn(".capability-legend", CSS)
+        self.assertIn('.toolkit-option[data-risk="public"] .tk-ico', CSS)
+        self.assertIn('.toolkit-option[data-risk="private"] .tk-ico', CSS)
+        self.assertIn('.toolkit-option[data-risk="powerful"] .tk-ico', CSS)
+        self.assertIn(".toolkits-grid .toolkit-option small { white-space: nowrap", CSS)
         self.assertNotIn(">Strict</span>", HTML)
         self.assertNotIn(">Invite</span>", HTML)
 
