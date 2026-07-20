@@ -1846,7 +1846,11 @@ async function boot() {
     else if ($('#app').classList.contains('is-detail')) closeDrawer();
   });
 
-  const splashDone = playSplash($('#splash'));
+  // A real process launch gets the welcome animation. If macOS has retained/recreated the
+  // window after the red Close button, restore the already-running app without replaying it.
+  const skipSplash = window.__coStudioSkipSplash === true;
+  const splashDone = skipSplash ? Promise.resolve() : playSplash($('#splash'));
+  if (skipSplash) $('#splash').hidden = true;
   const setupPromise = api.setupStatus().catch(() => null);
   const agentsPromise = api.listAgents().catch(() => null);
 

@@ -3,6 +3,13 @@ import SwiftUI
 import WebKit
 import Sparkle
 
+/// Process-lifetime presentation state. It resets on a real app launch, but survives a closed and
+/// recreated SwiftUI window so Dock reopen never replays the cold-start welcome animation.
+@MainActor
+private enum NativeLaunchPresentation {
+    static var hasLoadedInitialPage = false
+}
+
 /// A WKWebView that fills the window and shows the studio's existing web UI.
 struct WebView: NSViewRepresentable {
     let url: URL
@@ -23,13 +30,16 @@ struct WebView: NSViewRepresentable {
         // --- Sparkle bridge -------------------------------------------------------------------
         // Tell the web UI it's running inside the native app (so it shows "Relaunch to update"
         // instead of the pip/pipx command), and expose a tiny JS API to drive Sparkle.
+        let skipSplash = NativeLaunchPresentation.hasLoadedInitialPage ? "true" : "false"
         let bridge = """
         window.__coStudioNative = true;
+        window.__coStudioSkipSplash = \(skipSplash);
         window.__coStudio = {
           installUpdate: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'installUpdate' }); },
           dismissUpdate: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'dismissUpdate' }); },
           checkForUpdates: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'checkForUpdates' }); },
-          setAppearance: function (appearance) { window.webkit.messageHandlers.coStudio.postMessage({ action: 'setAppearance', appearance: appearance }); }
+          setAppearance: function (appearance) { window.webkit.messageHandlers.coStudio.postMessage({ action: 'setAppearance', appearance: appearance }); },
+          copyText: function (text) { window.webkit.messageHandlers.coStudio.postMessage({ action: 'copyText', text: text }); }
         };
         """
         let script = WKUserScript(source: bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true)
@@ -72,6 +82,7 @@ struct WebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            NativeLaunchPresentation.hasLoadedInitialPage = true
             onReady()
         }
 
@@ -84,6 +95,10 @@ struct WebView: NSViewRepresentable {
             case "installUpdate":    WebUpdater.shared.installAndRelaunch()
             case "dismissUpdate":    WebUpdater.shared.dismiss()
             case "checkForUpdates":  WebUpdater.shared.checkForUpdates()
+            case "copyText":
+                guard let text = body["text"] as? String else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
             case "setAppearance":
                 guard let raw = body["appearance"] as? String,
                       let appearance = StudioAppearance(rawValue: raw) else { return }

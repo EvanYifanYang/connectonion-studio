@@ -33,8 +33,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { WebUpdater.shared.start() }
     }
 
-    // Closing the (single) window quits the app, which routes through applicationWillTerminate below.
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    // The red traffic-light closes the window but keeps Studio (and its local manager) alive.
+    // Quit remains an explicit ⌘Q action and still routes through applicationWillTerminate below.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    // A single-window SwiftUI app has no File → New Window command. Reuse the retained window when
+    // the user clicks the Dock icon after closing it with the red traffic-light.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !flag else { return true }
+        if let window = sender.windows.first(where: { $0.canBecomeMain }) {
+            window.makeKeyAndOrderFront(nil)
+        }
+        sender.activate(ignoringOtherApps: true)
+        return true
+    }
 
     // The reliable "app is quitting" hook — unlike SwiftUI's onDisappear. Kill the server child here
     // so we never leak a headless co-studio (and, via --kill-agents-on-exit, its agent subprocesses).
@@ -85,6 +97,8 @@ struct ContentView: View {
         .background(WindowAccessor { window in
             // Lets the spinner / error phases drag from anywhere; the strip above covers the WebView.
             window.isMovableByWindowBackground = true
+            // Keep the single SwiftUI window object available for Dock-icon reopen after Close.
+            window.isReleasedWhenClosed = false
             // Paper (not system white) so the launch seam never flashes before the web UI paints.
             window.backgroundColor = appearance.canvasNSColor
         })

@@ -19,6 +19,7 @@ MAC_APP = (
 MAC_WEBVIEW = (
     ROOT / "macos/ConnectOnionStudio/ConnectOnionStudio/WebView.swift"
 ).read_text()
+DIAGNOSTICS = (ROOT / "co_studio/frontend/js/diagnostics.js").read_text()
 
 
 class AppearanceContractTests(unittest.TestCase):
@@ -54,6 +55,13 @@ class AppearanceContractTests(unittest.TestCase):
         self.assertIn("StartingView(appearance: appearance)", MAC_APP)
         self.assertIn("appearance.canvasNSColor", MAC_WEBVIEW)
         self.assertIn("setAppearance: function (appearance)", MAC_WEBVIEW)
+
+    def test_native_clipboard_and_reopen_skip_the_welcome_animation(self) -> None:
+        self.assertIn("window.__coStudio?.copyText", DIAGNOSTICS)
+        self.assertIn("copyText: function (text)", MAC_WEBVIEW)
+        self.assertIn('case "copyText"', MAC_WEBVIEW)
+        self.assertIn("window.__coStudioSkipSplash", MAC_WEBVIEW)
+        self.assertIn("window.__coStudioSkipSplash === true", JS)
 
 
 if __name__ == "__main__":
