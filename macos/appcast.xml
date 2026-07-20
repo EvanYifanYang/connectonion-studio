@@ -1,0 +1,16 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>ConnectOnionStudio</title>
+        <item>
+            <title>0.1.1</title>
+            <pubDate>Mon, 20 Jul 2026 13:33:25 +1000</pubDate>
+            <link>https://github.com/EvanYifanYang/connectonion-studio</link>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.7</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/EvanYifanYang/connectonion-studio/releases/download/macos-v0.1.1/ConnectOnionStudio-0.1.1.dmg" length="138912188" type="application/octet-stream" sparkle:edSignature="WxaaZZGk3OFlS81zXuO8O2XnubYnqNWFGKuqPJz8nCgn6ms3H+qcAdA+RJi++Dvq1HfVxwwWiyRJsZMfVnDFDA=="/>
+        </item>
+    </channel>
+</rss>

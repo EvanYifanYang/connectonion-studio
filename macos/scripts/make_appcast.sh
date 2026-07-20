@@ -29,17 +29,23 @@ DIST="dist"
 [ -x "$TOOLS/generate_appcast" ] || { echo "Sparkle tools missing at $TOOLS/ — re-download them."; exit 1; }
 ls "$DIST"/*.dmg >/dev/null 2>&1  || { echo "no .dmg in $DIST/ — run build_release.sh (+ notarize/staple) first."; exit 1; }
 
-# Let generate_appcast update the existing feed (preserving older, already-signed entries)
-# instead of starting a fresh one that would drop past versions.
-[ -f appcast.xml ] && cp appcast.xml "$DIST/appcast.xml"
+# generate_appcast treats EVERY archive in the folder as an update, and dist/ also holds build
+# byproducts (python*.tar.gz). Isolate just the .dmg(s) in a clean staging dir so those don't
+# get picked up ("Duplicate update archives" error otherwise).
+STAGE="$DIST/appcast-stage"
+rm -rf "$STAGE"; mkdir -p "$STAGE"
+cp "$DIST"/*.dmg "$STAGE"/
+# carry the existing feed in so older, already-signed entries are preserved (not dropped).
+[ -f appcast.xml ] && cp appcast.xml "$STAGE/appcast.xml"
 
-echo "generating appcast for $DIST/*.dmg"
+echo "generating appcast for $STAGE/*.dmg"
 echo "  download-url-prefix: $PREFIX"
-"$TOOLS/generate_appcast" "$DIST" \
+"$TOOLS/generate_appcast" "$STAGE" \
     --download-url-prefix "$PREFIX" \
     --link "https://github.com/$REPO"
 
-mv "$DIST/appcast.xml" appcast.xml
+mv "$STAGE/appcast.xml" appcast.xml
+rm -rf "$STAGE"
 
 echo ""
 echo "DONE -> macos/appcast.xml"

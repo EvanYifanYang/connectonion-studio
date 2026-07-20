@@ -14,8 +14,8 @@ cd "$(dirname "$0")/.."                 # -> macos/
 ROOT="$(pwd)"
 DIST="$ROOT/dist"
 
-STUDIO_VERSION="${STUDIO_VERSION:-0.1.2}"          # connectonion-studio version to bundle (from PyPI)
-APP_VERSION="0.1.0"                                # keep in sync with Xcode MARKETING_VERSION
+STUDIO_VERSION="${STUDIO_VERSION:-0.1.5}"          # connectonion-studio version to bundle (from PyPI)
+APP_VERSION="0.1.1"                                # keep in sync with Xcode MARKETING_VERSION
 PY_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260718/cpython-3.12.13%2B20260718-aarch64-apple-darwin-install_only.tar.gz"
 SIGN_ID="Developer ID Application: Yifan Yang (7V6USF6B96)"
 ENT="$ROOT/scripts/python.entitlements"
@@ -63,6 +63,22 @@ for attempt in 1 2 3 4; do
   [ "$nf" -eq 0 ] && break
   FILES="$fails"; sleep 2
 done
+
+# Sparkle ships adhoc-signed (TeamIdentifier=not set), which notarization rejects. Re-sign its nested
+# code inside-out with our Developer ID + hardened runtime: XPC services (keep their own entitlements),
+# then Autoupdate + Updater.app, then the framework itself — before sealing the app bundle below.
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+if [ -d "$SPARKLE" ]; then
+  echo "     re-signing Sparkle.framework nested code with Developer ID"
+  for xpc in "$SPARKLE"/Versions/*/XPCServices/*.xpc; do
+    [ -e "$xpc" ] && codesign --force --timestamp --options runtime --preserve-metadata=entitlements -s "$SIGN_ID" "$xpc"
+  done
+  for bin in "$SPARKLE"/Versions/*/Autoupdate "$SPARKLE"/Versions/*/Updater.app; do
+    [ -e "$bin" ] && codesign --force --timestamp --options runtime -s "$SIGN_ID" "$bin"
+  done
+  codesign --force --timestamp --options runtime -s "$SIGN_ID" "$SPARKLE"
+fi
+
 codesign --force --timestamp --options runtime -s "$SIGN_ID" "$APP"
 codesign --verify --deep --strict "$APP"
 
