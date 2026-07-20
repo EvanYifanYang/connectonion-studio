@@ -31,6 +31,19 @@ def _unique_slug(name: str) -> str:
     return candidate
 
 
+def name_conflicts(name: str, *, exclude_slug: str | None = None) -> bool:
+    """Whether another registered agent already uses the same normalized display name.
+
+    Callers performing a mutation must hold ``registry.locked()`` so the check and
+    subsequent write are one atomic operation.
+    """
+    key = slugify(name)
+    return any(
+        meta.slug != exclude_slug and slugify(meta.name) == key
+        for meta in registry.load_all()
+    )
+
+
 def _system_prompt(name: str, capabilities: list[str]) -> str:
     """Compose a general contract plus operating guidance for selected capabilities."""
     abilities = "; ".join(HINTS[t] for t in capabilities) or "plain conversation"

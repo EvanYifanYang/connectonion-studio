@@ -118,6 +118,8 @@ def rename_agent(slug: str, body: RenameBody) -> dict[str, object]:
         raise HTTPException(status_code=422, detail="name must not be blank")
     with registry.locked():
         meta = _get_meta(slug)
+        if creator.name_conflicts(name, exclude_slug=slug):
+            raise HTTPException(status_code=409, detail="An agent with that name already exists.")
         meta.name = name
         if meta.preset == "custom":
             meta.capabilities, meta.trust, meta.invite_code = creator.normalize_custom_policy(

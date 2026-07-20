@@ -346,6 +346,12 @@ async function commitRename(card, raw) {
   nameEl.classList.remove('editing');
   const name = (raw || '').trim();
   if (!name || name === agent.name) { nameEl.textContent = agent.name; return; }
+  const validation = nameStatus(name, agent.slug);
+  if (validation.kind === 'bad') {
+    nameEl.textContent = agent.name;
+    toast(validation.msg, 'danger');
+    return;
+  }
   try {
     const updated = await api.renameAgent(agent.slug, name);
     card._agent = { ...agent, ...updated };
@@ -353,7 +359,7 @@ async function commitRename(card, raw) {
     toast(`Renamed to “${name}”`);
   } catch (err) {
     nameEl.textContent = agent.name;
-    toast(`Rename failed: ${err.message}`, 'danger');
+    toast(err.status === 409 ? err.message : `Rename failed: ${err.message}`, 'danger');
   }
 }
 function startRename(card) {
@@ -1032,12 +1038,14 @@ function syncTemplateFields({ resetModel = false } = {}) {
 // mirrors the backend slug rule (creator.slugify): lowercase, non-alphanumeric → '-'
 const slugify = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-function nameStatus(raw) {
+function nameStatus(raw, excludeSlug = null) {
   const name = (raw || '').trim();
   if (!name) return { kind: 'empty' };
   const slug = slugify(name);
   if (!slug) return { kind: 'bad', msg: 'Use letters or numbers in the name.' };
-  if (state.agents.some((a) => a.slug === slug)) return { kind: 'bad', msg: 'An agent with that name already exists.' };
+  if (state.agents.some((a) => a.slug !== excludeSlug && slugify(a.name) === slug)) {
+    return { kind: 'bad', msg: 'An agent with that name already exists.' };
+  }
   return { kind: 'ok' };
 }
 
