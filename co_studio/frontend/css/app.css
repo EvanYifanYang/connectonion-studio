@@ -697,6 +697,53 @@ body.shell-ready #app { transition: opacity 0.42s ease, transform 0.5s cubic-bez
   margin-top: 20px;
 }
 
+/* update-available modal: upgrade steps */
+.update-modal-card { width: min(420px, 100%); padding: 14px 20px; }
+.modal-card.update-modal-card { background: var(--elevated); }
+.update-modal-head { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 15px; }
+.update-modal-icon { flex: none; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: inline-grid; place-items: center; }
+.update-modal-icon svg { width: 18px; height: 18px; }
+.update-modal-titles { flex: 1; min-width: 0; }
+.update-modal-titles h2 { font-family: var(--font-ui); font-size: 16px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; }
+.update-modal-ver { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.um-pkg { font-size: 12px; color: var(--ink); }
+.um-old { font-size: 11.5px; color: var(--ink-2); }
+.um-arrow { color: var(--ink-3); display: inline-flex; }
+.um-arrow svg { width: 13px; height: 13px; }
+.um-new { font-size: 11.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 1px 8px; border-radius: 20px; }
+.um-x { flex: none; width: 26px; height: 26px; border: none; background: transparent; color: var(--ink-3); border-radius: 7px; cursor: pointer; display: inline-grid; place-items: center; }
+.um-x:hover { background: var(--grouped); color: var(--ink); }
+.um-x svg { width: 17px; height: 17px; }
+.um-step { margin-bottom: 10px; }
+.um-step-label { font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 5px; }
+.um-cmd { display: flex; align-items: center; gap: 8px; background: color-mix(in srgb, var(--accent) 6%, var(--elevated)); border: 1px solid var(--hairline); border-radius: 8px; padding: 6px 10px; }
+.um-cmd code { flex: 1; min-width: 0; font-size: 13px; color: var(--ink); overflow-x: auto; white-space: nowrap; }
+.um-copy { flex: none; width: 24px; height: 24px; border: none; background: transparent; color: var(--ink-2); border-radius: 6px; cursor: pointer; display: inline-grid; place-items: center; transition: color 0.15s ease, background 0.15s ease; }
+.um-copy:hover { background: var(--elevated); color: var(--accent); }
+.um-copy.copied { color: var(--ok); }
+.um-copy svg { width: 15px; height: 15px; }
+.um-hint { font-size: 11.5px; color: var(--ink-2); margin-top: 6px; }
+.update-modal-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.um-notes { font-size: 12.5px; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+.um-notes:hover { text-decoration: underline; }
+.um-notes svg { width: 14px; height: 14px; }
+#um-close { padding: 4px 14px; }
+.um-app-body { display: none; }
+.um-app-text { font-size: 13px; color: var(--ink-2); margin: 0; line-height: 1.55; }
+.um-foot-btns { display: inline-flex; align-items: center; gap: 8px; }
+#um-relaunch { display: none; }
+#modal-update.is-app .um-cli { display: none; }
+#modal-update.is-app .um-app-body { display: block; }
+#modal-update.is-app #um-relaunch { display: inline-flex; }
+@keyframes um-overlay-in { from { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); } to { opacity: 1; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); } }
+@keyframes um-overlay-out { from { opacity: 1; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); } to { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); } }
+@keyframes um-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+#modal-update { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: um-overlay-in 0.26s ease-out; }
+#modal-update.is-closing { animation: um-overlay-out 0.24s ease-in forwards; }
+.update-modal-card { animation: um-rise 0.24s cubic-bezier(0.22, 1, 0.36, 1); }
+#modal-update.is-closing .update-modal-card { animation: none; }
+@media (prefers-reduced-motion: reduce) { #modal-update, #modal-update.is-closing, .update-modal-card { animation: none; } #modal-update { backdrop-filter: none; -webkit-backdrop-filter: none; } }
+
 /* create form */
 .field { display: block; margin-bottom: 14px; }
 .field > span, .field legend {

@@ -1524,30 +1524,121 @@ function revealApp() {
   setTimeout(refitChips, 80);         // cards now have layout → truncate overflowing chips
 }
 
-// ---- update banner (a newer connectonion-studio is on PyPI) ---------
+// ---- update banner + modal (a newer connectonion-studio is on PyPI) ---------
+const REPO_URL = 'https://github.com/EvanYifanYang/connectonion-studio';
+let updateInfo = null;   // last /setup/update payload, so the modal renders without refetching
+const IS_APP = !!window.__coStudioNative;   // running inside the native macOS app (Sparkle drives updates)
+let appUpdate = null;   // latest Sparkle state in app mode: { version, status }
+
 async function refreshUpdateBanner() {
   const banner = $('#update-banner');
   if (!banner) return;
-  let info;
-  try { info = await api.updateStatus(); } catch { return; }   // offline / older backend → leave hidden
-  if (info.update_available && info.latest) {
-    $('#update-ver').textContent = `v${info.latest}`;
+  try { updateInfo = await api.updateStatus(); } catch { return; }   // offline / older backend: leave hidden
+  if (updateInfo.update_available && updateInfo.latest) {
+    $('#update-ver').textContent = `v${updateInfo.latest}`;
     banner.hidden = false;
   } else {
     banner.hidden = true;
   }
 }
 
+function openUpdateModal() {
+  const modal = $('#modal-update');
+  if (IS_APP) {
+    if (!appUpdate) return;
+    modal.classList.add('is-app');   // CSS swaps the CLI steps for the "Relaunch to update" body
+    $('#um-current').textContent = '';
+    $('#um-latest').textContent = appUpdate.version ? `v${appUpdate.version}` : '';
+    $('#um-notes').href = appUpdate.version ? `${REPO_URL}/releases/tag/v${appUpdate.version}` : REPO_URL;
+    reflectAppStatus(appUpdate.status);
+  } else {
+    const info = updateInfo;
+    if (!info || !info.latest) return;
+    modal.classList.remove('is-app');
+    $('#um-current').textContent = info.current ? `v${info.current}` : '';
+    $('#um-latest').textContent = `v${info.latest}`;
+    // backend reports the command matching how the studio was installed (pipx vs pip)
+    $('#um-upgrade-cmd').textContent = info.upgrade_command || 'pipx upgrade connectonion-studio';
+    $('#um-notes').href = `${REPO_URL}/releases/tag/v${info.latest}`;
+  }
+  modal.classList.remove('is-closing');   // clear a stale exit state before re-opening
+  modal.hidden = false;
+}
+
+// macOS app: Sparkle pushes update state here (via the WebView bridge) to drive the banner + modal.
+function onSparkleUpdate(payload) {
+  const banner = $('#update-banner');
+  if (!banner) return;
+  const status = (payload && payload.status) || 'idle';
+  if (status === 'available' || status === 'readyToRelaunch') {
+    appUpdate = { version: (payload && payload.version) || '', status };
+    if (appUpdate.version) $('#update-ver').textContent = `v${appUpdate.version}`;
+    banner.hidden = false;
+  } else if (status === 'downloading' || status === 'installing') {
+    if (appUpdate) appUpdate.status = status;
+    reflectAppStatus(status);
+  } else {   // none / idle / error
+    appUpdate = null;
+    banner.hidden = true;
+    if (!$('#modal-update').hidden) closeUpdateModal();
+  }
+}
+
+// Reflect the current Sparkle stage in the app-mode modal body + Relaunch button.
+function reflectAppStatus(status) {
+  const text = $('#um-app-text'), btn = $('#um-relaunch');
+  if (!text || !btn) return;
+  if (status === 'downloading') {
+    text.textContent = 'Downloading the update...';
+    btn.textContent = 'Downloading...'; btn.disabled = true;
+  } else if (status === 'installing') {
+    text.textContent = 'Installing the update...';
+    btn.textContent = 'Installing...'; btn.disabled = true;
+  } else {
+    text.textContent = 'A new version is ready. Relaunch to finish updating.';
+    btn.textContent = 'Relaunch to update'; btn.disabled = false;
+  }
+}
+
+// Play the fade + un-blur exit before hiding, so the background clears gradually on close.
+function closeUpdateModal() {
+  const modal = $('#modal-update');
+  if (modal.hidden || modal.classList.contains('is-closing')) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    modal.hidden = true;   // no exit animation to await under reduced motion
+    return;
+  }
+  let timer;
+  const finish = () => {
+    clearTimeout(timer);
+    modal.removeEventListener('animationend', onEnd);
+    modal.classList.remove('is-closing');
+    modal.hidden = true;
+  };
+  const onEnd = (e) => { if (e.target === modal && e.animationName === 'um-overlay-out') finish(); };
+  modal.classList.add('is-closing');
+  modal.addEventListener('animationend', onEnd);
+  timer = setTimeout(finish, 360);   // fallback if animationend never fires
+}
+
 function initUpdateCheck() {
   const banner = $('#update-banner');
   if (!banner) return;
-  banner.addEventListener('click', async () => {
-    const cmd = 'pipx upgrade connectonion-studio';
-    const ok = await copyText(cmd);
-    toast(ok ? `Copied “${cmd}” — run it, then restart co-studio` : `Update: run ${cmd}, then restart`);
-  });
-  refreshUpdateBanner();
-  setInterval(refreshUpdateBanner, 3 * 60 * 60 * 1000);   // re-check every 3h (backend caches PyPI hourly)
+  banner.addEventListener('click', openUpdateModal);
+  $('#um-close').addEventListener('click', closeUpdateModal);
+  $('#um-close-x').addEventListener('click', closeUpdateModal);
+  $('#modal-update').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeUpdateModal(); });
+  if (IS_APP) {
+    // macOS app: Sparkle drives updates, no PyPI polling. The native bridge calls window.__coStudioUpdate.
+    window.__coStudioUpdate = onSparkleUpdate;
+    $('#um-relaunch').addEventListener('click', () => { window.__coStudio && window.__coStudio.installUpdate(); });
+  } else {
+    // CLI (pip/pipx): poll PyPI and show the upgrade-command modal.
+    $('#um-copy-upgrade').addEventListener('click', (e) => copyWithFeedback(e.currentTarget, $('#um-upgrade-cmd').textContent));
+    $('#um-copy-restart').addEventListener('click', (e) => copyWithFeedback(e.currentTarget, 'co-studio'));
+    refreshUpdateBanner();
+    setInterval(refreshUpdateBanner, 3 * 60 * 60 * 1000);   // re-check every 3h (backend caches PyPI hourly)
+  }
 }
 
 // ---- boot -----------------------------------------------------------
@@ -1579,6 +1670,7 @@ async function boot() {
     if ($('#app').classList.contains('is-settings')) closeSettingsModal();
     else if ($('#app').classList.contains('is-logs')) closeLogsView();
     else if (!$('#modal-qr').hidden) $('#modal-qr').hidden = true;
+    else if (!$('#modal-update').hidden) closeUpdateModal();
     else if ($('#app').classList.contains('is-creating')) closeCreateModal();
     else if ($('#app').classList.contains('is-detail')) closeDrawer();
   });

@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import re
+import sys
 import time
 import urllib.request
 
@@ -24,6 +25,18 @@ def current_version() -> str:
         return importlib.metadata.version("connectonion-studio")
     except Exception:  # noqa: BLE001 — not installed as a dist
         return "0.0.0"
+
+
+def _upgrade_command() -> str:
+    """The upgrade command matching how the studio was installed (pipx vs pip).
+
+    A pipx install runs from a ``.../pipx/venvs/connectonion-studio`` prefix; anything else
+    (pip into a venv, conda, or the system) upgrades with pip. Best-effort, never raises.
+    """
+    marker = f"{sys.prefix}|{sys.executable}".replace("\\", "/").lower()
+    if "pipx/venvs" in marker or "/pipx/" in marker:
+        return "pipx upgrade connectonion-studio"
+    return "pip install -U connectonion-studio"
 
 
 def _fetch_latest() -> str | None:
@@ -59,4 +72,5 @@ def check(force: bool = False) -> dict[str, object]:
         "current": current,
         "latest": latest,
         "update_available": bool(latest and _newer(str(latest), current)),
+        "upgrade_command": _upgrade_command(),
     }

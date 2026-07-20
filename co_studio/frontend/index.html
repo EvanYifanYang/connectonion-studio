@@ -114,7 +114,7 @@
       <div class="sidebar-foot">
         <div id="doctor-banner" class="doctor-banner" hidden></div>
         <button id="update-banner" class="update-banner" type="button" hidden
-                title="A newer version is on PyPI — click to copy the upgrade command">
+                title="A newer version is on PyPI — click for upgrade steps">
           <span class="update-ico" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
           </span>
@@ -411,6 +411,69 @@
       <div class="qr-addr mono" id="qr-addr"></div>
       <div class="modal-actions" style="justify-content: center;">
         <button type="button" id="qr-close" class="btn btn-ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- update available — upgrade steps -->
+  <div id="modal-update" class="modal-overlay" hidden>
+    <div class="modal-card update-modal-card glass" role="dialog" aria-modal="true" aria-label="Update available">
+      <div class="update-modal-head">
+        <span class="update-modal-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16V8"/><path d="m8.5 11.5 3.5-3.5 3.5 3.5"/></svg>
+        </span>
+        <div class="update-modal-titles">
+          <h2>Update available</h2>
+          <div class="update-modal-ver">
+            <span class="um-pkg">connectonion-studio</span>
+            <span class="um-old mono" id="um-current"></span>
+            <span class="um-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+            </span>
+            <span class="um-new mono" id="um-latest"></span>
+          </div>
+        </div>
+        <button type="button" id="um-close-x" class="um-x" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="um-cli">
+      <div class="um-step">
+        <div class="um-step-label">1. Upgrade</div>
+        <div class="um-cmd">
+          <code id="um-upgrade-cmd" class="mono"></code>
+          <button type="button" id="um-copy-upgrade" class="um-copy" aria-label="Copy command">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="um-step">
+        <div class="um-step-label">2. Restart</div>
+        <div class="um-cmd">
+          <code class="mono">co-studio</code>
+          <button type="button" id="um-copy-restart" class="um-copy" aria-label="Copy command">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+        <div class="um-hint">Stop the running server with Ctrl+C, then run it again.</div>
+      </div>
+      </div>
+
+      <div class="um-app-body">
+        <p class="um-app-text" id="um-app-text">A new version is ready. Relaunch to finish updating.</p>
+      </div>
+
+      <div class="update-modal-foot">
+        <a id="um-notes" class="um-notes" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+          Release notes
+        </a>
+        <span class="um-foot-btns">
+          <button type="button" id="um-relaunch" class="btn btn-primary btn-sm">Relaunch to update</button>
+          <button type="button" id="um-close" class="btn btn-sm">Close</button>
+        </span>
       </div>
     </div>
   </div>
