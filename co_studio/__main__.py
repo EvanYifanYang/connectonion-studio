@@ -129,11 +129,18 @@ def main(argv: list[str] | None = None) -> None:
     # SIGINT/SIGTERM, so map SIGHUP onto its graceful-exit flag.
     if hasattr(signal, "SIGHUP"):
         signal.signal(signal.SIGHUP, lambda *_: setattr(server, "should_exit", True))
-    if sock is not None:
-        # Hand uvicorn the socket we already bound+listened on (TOCTOU-free); it will not re-bind.
-        server.run(sockets=[sock])
-    else:
-        server.run()
+    # Ctrl+C already triggered uvicorn's graceful shutdown by the time server.run() returns; its
+    # asyncio.Runner then re-raises KeyboardInterrupt once the loop is closed. We call server.run()
+    # programmatically (no uvicorn CLI wrapper to absorb it), so swallow it here — an intended,
+    # orderly stop should exit cleanly, not dump a traceback for what was already a clean shutdown.
+    try:
+        if sock is not None:
+            # Hand uvicorn the socket we already bound+listened on (TOCTOU-free); it will not re-bind.
+            server.run(sockets=[sock])
+        else:
+            server.run()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":
