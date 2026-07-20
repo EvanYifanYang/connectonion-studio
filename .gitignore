@@ -33,3 +33,6 @@ DESIGN.md
 # Sparkle CLI tools (build-time only)
 macos/.sparkle-tools/
 macos/ConnectOnionStudio/build-check/
+
+# local release guide (not for GitHub)
+/RELEASING.md
