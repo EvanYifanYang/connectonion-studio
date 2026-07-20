@@ -239,7 +239,7 @@ function updateCard(card, agent) {
   nameEl.title = agent.name;
   $('.state-word', card).textContent = capitalize(agent.state);
   $('.port-val', card).textContent = agent.port;
-  $('.access-val', card).textContent = capitalize(agent.trust || 'open');
+  $('.access-val', card).textContent = agent.preset === 'co-ai' ? 'Invite only' : capitalize(agent.trust || 'open');
   $('.addr-short', card).textContent = shortAddr(agent.address);
   const modelEl = $('.model-val', card);
   modelEl.textContent = agent.model;
@@ -247,7 +247,7 @@ function updateCard(card, agent) {
 
   // Toolkits → violet chips. Only (re)build when they actually change, so the
   // periodic /ws/status refresh doesn't rebuild the DOM and flicker the card.
-  const tkKey = (agent.toolkits || []).join('');
+  const tkKey = `${agent.preset || 'custom'}:${(agent.toolkits || []).join('')}`;
   if (card._tkKey !== tkKey) {
     card._tkKey = tkKey;
     fitChips(card);
@@ -297,7 +297,8 @@ function renderChips(wrap, list, more, fullTitle) {
 function fitChips(card) {
   const wrap = $('.toolkits-chips', card);
   if (!wrap) return;
-  const full = (card._agent && card._agent.toolkits) || [];
+  const agent = card._agent;
+  const full = agent?.preset === 'co-ai' ? ['co ai'] : (agent?.toolkits || []);
   const ordered = [...full.filter((t) => t !== 'utility'), ...full.filter((t) => t === 'utility')];
   const title = full.join(', ');
   let n = Math.min(3, ordered.length);
@@ -895,9 +896,13 @@ function renderDoctorBanner(setup) {
   banner.hidden = false;
 }
 
-// ---- create wizard (Name → Model → Toolkits) ------------------------
-const WIZARD_STEPS = 4;
+// ---- create wizard (Name → Template → Model → configuration) --------
 let wizardStep = 0;
+
+const isCoAiTemplate = () => $('#f-template')?.value === 'co-ai';
+const visibleWizardSteps = () => isCoAiTemplate() ? [0, 1, 2, 4] : [0, 1, 2, 3, 4];
+const wizardPosition = () => Math.max(0, visibleWizardSteps().indexOf(wizardStep));
+const isFinalWizardStep = () => wizardPosition() === visibleWizardSteps().length - 1;
 
 function stepHeight(n) {
   const step = $(`.wizard-step[data-step="${n}"]`);
@@ -937,18 +942,47 @@ function paintWizard(animateHeight = true) {
 
   if (targetCardH) app.style.height = `${targetCardH}px`;   // card follows the content (CSS-animated)
 
-  document.querySelectorAll('.wdot').forEach((d, i) => d.classList.toggle('is-active', i === wizardStep));
+  const steps = visibleWizardSteps();
+  const position = wizardPosition();
+  document.querySelectorAll('.wdot').forEach((d, i) => {
+    d.hidden = i >= steps.length;
+    d.classList.toggle('is-active', i === position);
+  });
   $('#wizard-back').textContent = wizardStep === 0 ? 'Cancel' : 'Back';
-  const last = wizardStep === WIZARD_STEPS - 1;
+  const last = isFinalWizardStep();
   $('#wizard-next').hidden = last;
   $('#create-submit').hidden = !last;
 }
 
 function goWizard(n) {
-  wizardStep = Math.max(0, Math.min(WIZARD_STEPS - 1, n));
+  const steps = visibleWizardSteps();
+  wizardStep = steps.includes(n) ? n : steps[0];
   paintWizard(true);
   const focusable = $(`.wizard-step[data-step="${wizardStep}"]`)?.querySelector('input, select');
   if (focusable) setTimeout(() => focusable.focus(), 80);
+}
+
+function moveWizard(direction) {
+  const steps = visibleWizardSteps();
+  const target = Math.max(0, Math.min(steps.length - 1, wizardPosition() + direction));
+  goWizard(steps[target]);
+}
+
+function syncTemplateFields({ resetModel = false } = {}) {
+  const coAi = isCoAiTemplate();
+  $('#create-toolkit-step').hidden = coAi;
+  $('#f-custom-access').hidden = coAi;
+  $('#f-co-ai-access').hidden = !coAi;
+  $('#f-template-help').textContent = coAi
+    ? 'A stateful coding agent with files, shell, browser, planning, skills, and persistent todos.'
+    : 'Build a lightweight agent from the toolkits you select.';
+  $('#create-view').classList.toggle('is-co-ai', coAi);
+  if (resetModel) {
+    $('#f-model').value = coAi ? 'co/gemini-3.5-flash' : 'co/gemini-2.5-flash';
+    $('#f-model-custom-wrap').hidden = true;
+  }
+  if (coAi && wizardStep === 3) wizardStep = 4;
+  if (!wizardStacked && $('#app').classList.contains('is-creating')) paintWizard(true);
 }
 
 // mirrors the backend slug rule (creator.slugify): lowercase, non-alphanumeric → '-'
@@ -987,10 +1021,17 @@ function validateStep(n) {
       errEl.hidden = false; return false;
     }
   }
-  if (n === 1) {
+  if (n === 2) {
     let model = $('#f-model').value;
     if (model === '__custom') model = $('#f-model-custom').value.trim();
     if (!model) { errEl.textContent = 'Pick or type a model.'; errEl.hidden = false; return false; }
+  }
+  if (n === 4 && isCoAiTemplate()) {
+    const code = $('#f-invite-code').value.trim();
+    if (!/^[A-Za-z0-9_-]{4,64}$/.test(code)) {
+      errEl.textContent = 'Use 4–64 letters, numbers, hyphens, or underscores for the invite code.';
+      errEl.hidden = false; return false;
+    }
   }
   return true;
 }
@@ -1006,6 +1047,7 @@ function openCreateModal(stacked = false) {
   }
   $('#create-form').reset();
   $('#f-model-custom-wrap').hidden = true;
+  syncTemplateFields();
   $('#create-error').hidden = true;
   $('#create-submit').disabled = false;
   if (createBtnHTML) $('#create-submit').innerHTML = createBtnHTML;
@@ -1015,7 +1057,7 @@ function openCreateModal(stacked = false) {
   updateNameStatus();                        // clear the ✓/✕ from any prior run
   wizardFullH = $('#app').offsetHeight;      // remember the full card height to grow back to
   $('#app').classList.add('is-creating');   // slide the wizard in over the card
-  if (stacked) {                             // main-interface entry: all four steps in one scrollable form
+  if (stacked) {                             // main-interface entry: all visible steps in one scrollable form
     $('#app').style.height = '';             // full card (no per-step sizing); the form scrolls inside
     $('#wizard-back').textContent = 'Cancel';
     $('#wizard-next').hidden = true;
@@ -1052,10 +1094,14 @@ function initCreateModal() {
   $('#btn-new-agent-first').addEventListener('click', () => openCreateModal(false)); // first-run → step-by-step
   $('#wizard-back').addEventListener('click', () => {
     if (wizardStacked || wizardStep === 0) closeCreateModal();
-    else goWizard(wizardStep - 1);
+    else moveWizard(-1);
   });
   $('#wizard-next').addEventListener('click', () => {
-    if (validateStep(wizardStep)) goWizard(wizardStep + 1);
+    if (validateStep(wizardStep)) moveWizard(1);
+  });
+  $('#f-template').addEventListener('change', () => {
+    $('#create-error').hidden = true;
+    syncTemplateFields({ resetModel: true });
   });
   $('#f-model').addEventListener('change', (e) => {
     const custom = e.target.value === '__custom';
@@ -1073,7 +1119,7 @@ function initCreateModal() {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     if (wizardStacked) return;
-    if (validateStep(wizardStep)) goWizard(wizardStep + 1);
+    if (validateStep(wizardStep)) moveWizard(1);
   };
   $('#f-name').addEventListener('keydown', advanceOnEnter);
   $('#f-model-custom').addEventListener('keydown', advanceOnEnter);
@@ -1083,8 +1129,8 @@ function initCreateModal() {
     // step-by-step wizard: Enter on an intermediate control (e.g. the Model
     // <select>, an Access radio) fires an implicit submit — treat it as "Next"
     // until the final step, so it never creates the agent early.
-    if (!wizardStacked && wizardStep < WIZARD_STEPS - 1) {
-      if (validateStep(wizardStep)) goWizard(wizardStep + 1);
+    if (!wizardStacked && !isFinalWizardStep()) {
+      if (validateStep(wizardStep)) moveWizard(1);
       return;
     }
     const errEl = $('#create-error');
@@ -1093,18 +1139,25 @@ function initCreateModal() {
     const name = $('#f-name').value.trim();
     let model = $('#f-model').value;
     if (model === '__custom') model = $('#f-model-custom').value.trim();
-    const optional = [...document.querySelectorAll('#create-form input[name="toolkit"]:checked')].map((cb) => cb.value);
-    const toolkits = ['utility', ...optional];   // Utility is always included
-    const trust = document.querySelector('#create-form input[name="trust"]:checked')?.value || 'open';
+    const preset = $('#f-template').value;
+    const coAi = preset === 'co-ai';
+    const optional = coAi ? [] : [...document.querySelectorAll('#create-form input[name="toolkit"]:checked')].map((cb) => cb.value);
+    const toolkits = coAi ? [] : ['utility', ...optional];   // Utility is always included on custom agents
+    const trust = coAi ? 'strict' : document.querySelector('#create-form input[name="trust"]:checked')?.value || 'open';
+    const invite_code = coAi ? $('#f-invite-code').value.trim() : null;
 
     if (!name) { errEl.textContent = 'Give the agent a name.'; errEl.hidden = false; if (!wizardStacked) goWizard(0); return; }
-    if (!model) { errEl.textContent = 'Pick or type a model.'; errEl.hidden = false; if (!wizardStacked) goWizard(1); return; }
+    if (!model) { errEl.textContent = 'Pick or type a model.'; errEl.hidden = false; if (!wizardStacked) goWizard(2); return; }
+    if (coAi && !/^[A-Za-z0-9_-]{4,64}$/.test(invite_code)) {
+      errEl.textContent = 'Use 4–64 letters, numbers, hyphens, or underscores for the invite code.';
+      errEl.hidden = false; if (!wizardStacked) goWizard(4); return;
+    }
 
     const submit = $('#create-submit');
     submit.disabled = true;
     submit.textContent = 'Creating…';
     try {
-      const detail = await api.createAgent({ name, model, toolkits, trust });
+      const detail = await api.createAgent({ name, model, toolkits, trust, preset, invite_code });
       closeCreateModal();
       await refreshAgents();
       toast(`${detail.name} created — QR ready. Press Start to bring it online.`);
@@ -1219,12 +1272,17 @@ function renderDrawerFields(detail) {
 
   const info = $('#d-info');
   info.textContent = '';
-  info.appendChild(detailGroup('Configuration', [
+  const configuration = [
+    ['Template', detail.preset === 'co-ai' ? 'co ai' : 'Custom Agent'],
     ['Model', detail.model],
     ['Port', String(detail.port)],
-    ['Toolkits', (detail.toolkits || []).join(' · ') || '—'],
-    ['Access', capitalize(detail.trust || 'open')],
-  ]));
+    [detail.preset === 'co-ai' ? 'Capabilities' : 'Toolkits', detail.preset === 'co-ai' ? 'Full coding toolkit' : (detail.toolkits || []).join(' · ') || '—'],
+    ['Access', detail.preset === 'co-ai' ? 'Invite only' : capitalize(detail.trust || 'open')],
+  ];
+  if (detail.preset === 'co-ai' && detail.invite_code) {
+    configuration.push(['Invite code', copyableValue(detail.invite_code)]);
+  }
+  info.appendChild(detailGroup('Configuration', configuration));
   info.appendChild(detailGroup('Runtime', [
     ['Status', statusValue(detail.state)],
     ['Relay', detail.relay_ok === true ? 'connected' : detail.relay_ok === false ? 'not connected' : '—'],

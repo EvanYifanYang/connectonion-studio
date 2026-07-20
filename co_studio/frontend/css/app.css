@@ -835,6 +835,9 @@ fieldset.toolkits { border: none; margin: 0 0 14px; padding: 0; }
 }
 .toolkit-included .tk-text b { font-size: 14px; font-weight: 600; }
 .toolkit-included small { display: block; color: var(--ink-2); font-size: 12px; margin-top: 3px; }
+.co-ai-warning { background: var(--danger-soft); }
+.co-ai-warning .tk-ico { background: var(--elevated); color: var(--danger); }
+.co-ai-code-field { margin-top: 14px; }
 .tk-accent { color: var(--accent); }
 .toolkit-optional-label { font-size: 11.5px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.03em; margin: 0 2px 9px; }
 .toolkits-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }

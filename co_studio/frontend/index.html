@@ -165,7 +165,7 @@
       <div class="wizard-head">
         <h2 id="create-title">New Agent</h2>
         <div class="wizard-dots" aria-hidden="true">
-          <span class="wdot"></span><span class="wdot"></span><span class="wdot"></span><span class="wdot"></span>
+          <span class="wdot"></span><span class="wdot"></span><span class="wdot"></span><span class="wdot"></span><span class="wdot"></span>
         </div>
       </div>
 
@@ -184,11 +184,24 @@
               </label>
             </section>
 
-            <!-- step 1 · model -->
+            <!-- step 1 · template -->
             <section class="wizard-step" data-step="1">
+              <label class="field">
+                <span class="section-label">Template</span>
+                <select id="f-template" name="preset">
+                  <option value="custom" selected>Custom Agent — choose your own capabilities</option>
+                  <option value="co-ai">co ai — full coding agent</option>
+                </select>
+              </label>
+              <p id="f-template-help" class="wizard-sub">Build a lightweight agent from the toolkits you select.</p>
+            </section>
+
+            <!-- step 2 · model -->
+            <section class="wizard-step" data-step="2">
               <label class="field">
                 <span class="section-label">Model</span>
                 <select id="f-model" name="model">
+                  <option value="co/gemini-3.5-flash">co/gemini-3.5-flash — managed key</option>
                   <option value="co/gemini-2.5-flash" selected>co/gemini-2.5-flash — managed key (default)</option>
                   <option value="co/gemini-2.5-pro">co/gemini-2.5-pro — managed key</option>
                   <option value="__custom">Custom…</option>
@@ -200,8 +213,8 @@
               </label>
             </section>
 
-            <!-- step 2 · toolkits (Utility is always included; the rest are optional) -->
-            <section class="wizard-step" data-step="2">
+            <!-- step 3 · toolkits (Utility is always included; the rest are optional) -->
+            <section id="create-toolkit-step" class="wizard-step" data-step="3">
               <div class="wizard-step-head">
                 <h3>Toolkits</h3>
               </div>
@@ -238,29 +251,47 @@
               </fieldset>
             </section>
 
-            <!-- step 3 · access (trust level) -->
-            <section class="wizard-step" data-step="3">
+            <!-- step 4 · access (trust level or co-ai invite gate) -->
+            <section class="wizard-step" data-step="4">
               <div class="wizard-step-head">
                 <h3>Access</h3>
               </div>
-              <fieldset class="trust-options">
-                <legend class="sr-only">Access level</legend>
-                <label class="trust-option">
-                  <input type="radio" name="trust" value="open" checked>
-                  <span class="trust-body"><b>Open</b><small>Anyone can connect — best for quick testing.</small></span>
+              <div id="f-custom-access">
+                <fieldset class="trust-options">
+                  <legend class="sr-only">Access level</legend>
+                  <label class="trust-option">
+                    <input type="radio" name="trust" value="open" checked>
+                    <span class="trust-body"><b>Open</b><small>Anyone can connect — best for quick testing.</small></span>
+                  </label>
+                  <label class="trust-option">
+                    <input type="radio" name="trust" value="careful">
+                    <span class="trust-body"><b>Careful</b><small>Strangers need the invite code <code>OpenOnion</code> (or payment).</small></span>
+                  </label>
+                  <label class="trust-option">
+                    <input type="radio" name="trust" value="strict">
+                    <span class="trust-body"><b>Strict</b><small>Whitelist only — nobody connects unless you add them.</small></span>
+                  </label>
+                </fieldset>
+                <div class="field-note">
+                  <span class="note-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                  <span>A free port is auto-assigned. Identity &amp; QR are ready now — the agent only starts when you press Start.</span>
+                </div>
+              </div>
+              <div id="f-co-ai-access" hidden>
+                <div class="toolkit-included co-ai-warning">
+                  <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></span>
+                  <span class="tk-text"><b>Invite-only coding access</b><small>co ai can read and write local files, run shell commands, and control a browser.</small></span>
+                </div>
+                <label class="field co-ai-code-field">
+                  <span>Invite code</span>
+                  <input id="f-invite-code" name="invite_code" type="text" value="developer"
+                         minlength="4" maxlength="64" pattern="[A-Za-z0-9_-]{4,64}"
+                         autocomplete="off" autocapitalize="none" spellcheck="false">
                 </label>
-                <label class="trust-option">
-                  <input type="radio" name="trust" value="careful">
-                  <span class="trust-body"><b>Careful</b><small>Strangers need the invite code <code>OpenOnion</code> (or payment).</small></span>
-                </label>
-                <label class="trust-option">
-                  <input type="radio" name="trust" value="strict">
-                  <span class="trust-body"><b>Strict</b><small>Whitelist only — nobody connects unless you add them.</small></span>
-                </label>
-              </fieldset>
-              <div class="field-note">
-                <span class="note-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
-                <span>A free port is auto-assigned. Identity &amp; QR are ready now — the agent only starts when you press Start.</span>
+                <div class="field-note">
+                  <span class="note-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                  <span>Only people with this code can onboard. Use it only on a trusted network.</span>
+                </div>
               </div>
             </section>
           </div>
