@@ -213,40 +213,57 @@
               </label>
             </section>
 
-            <!-- step 3 · toolkits (Utility is always included; the rest are optional) -->
+            <!-- step 3 · capabilities (Utility is always included; the rest are optional) -->
             <section id="create-toolkit-step" class="wizard-step" data-step="3">
               <div class="wizard-step-head">
-                <h3>Toolkits</h3>
+                <h3>Capabilities</h3>
               </div>
               <div class="toolkit-included">
                 <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.7L18.5 9l-4.6 1.3L12 15l-1.9-4.7L5.5 9l4.6-1.3L12 3z"/><path d="M19 15l.7 1.8L21.5 17.5l-1.8.7L19 20l-.7-1.8L16.5 17.5l1.8-.7L19 15z"/></svg></span>
                 <span class="tk-text">
-                  <b>Every agent comes with the <span class="tk-accent">Utility</span> toolkit.</b>
+                  <b>Every agent comes with the <span class="tk-accent">Utility</span> capability.</b>
                   <small>add · calculate · weather · time · dice · reverse · prime · fib</small>
                 </span>
+                <span class="risk-badge is-safe">Safe</span>
               </div>
               <p class="toolkit-optional-label">Add more if you need them (OPTIONAL)</p>
               <fieldset class="toolkits toolkits-grid">
-                <legend class="sr-only">Additional toolkits</legend>
+                <legend class="sr-only">Additional capabilities</legend>
                 <label class="toolkit-option">
                   <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.5 3.8 5.7 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.7-3.8-9S9.5 5.5 12 3z"/></svg></span>
-                  <span class="tk-text"><b>Web</b><small>Fetch web pages</small></span>
-                  <input type="checkbox" name="toolkit" value="web">
+                  <span class="tk-text"><b>Web fetch</b><small>Read public pages</small></span>
+                  <span class="risk-badge is-safe">Safe</span>
+                  <input type="checkbox" name="capability" value="web">
                 </label>
                 <label class="toolkit-option">
                   <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/></svg></span>
-                  <span class="tk-text"><b>Files</b><small>Read local files</small></span>
-                  <input type="checkbox" name="toolkit" value="files">
+                  <span class="tk-text"><b>File reading</b><small>Read &amp; search files</small></span>
+                  <span class="risk-badge is-careful">Invite</span>
+                  <input type="checkbox" name="capability" value="files">
+                </label>
+                <label class="toolkit-option">
+                  <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+                  <span class="tk-text"><b>File editing</b><small>Create &amp; edit files</small></span>
+                  <span class="risk-badge is-strict">Strict</span>
+                  <input type="checkbox" name="capability" value="file-write">
                 </label>
                 <label class="toolkit-option">
                   <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><path d="M13 15h4"/></svg></span>
                   <span class="tk-text"><b>Shell</b><small>Approval-gated bash</small></span>
-                  <input type="checkbox" name="toolkit" value="shell">
+                  <span class="risk-badge is-strict">Strict</span>
+                  <input type="checkbox" name="capability" value="shell">
                 </label>
                 <label class="toolkit-option">
                   <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5L5 21"/></svg></span>
                   <span class="tk-text"><b>Image</b><small>Generate images</small></span>
-                  <input type="checkbox" name="toolkit" value="image">
+                  <span class="risk-badge is-safe">Safe</span>
+                  <input type="checkbox" name="capability" value="image">
+                </label>
+                <label class="toolkit-option">
+                  <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 6.5h.01M11 6.5h.01"/><path d="M8 14l3 3 5-6"/></svg></span>
+                  <span class="tk-text"><b>Browser</b><small>Control local browser</small></span>
+                  <span class="risk-badge is-strict">Strict</span>
+                  <input type="checkbox" name="capability" value="browser">
                 </label>
               </fieldset>
             </section>
@@ -257,24 +274,20 @@
                 <h3>Access</h3>
               </div>
               <div id="f-custom-access">
-                <fieldset class="trust-options">
-                  <legend class="sr-only">Access level</legend>
-                  <label class="trust-option">
-                    <input type="radio" name="trust" value="open" checked>
-                    <span class="trust-body"><b>Open</b><small>Anyone can connect — best for quick testing.</small></span>
-                  </label>
-                  <label class="trust-option">
-                    <input type="radio" name="trust" value="careful">
-                    <span class="trust-body"><b>Careful</b><small>Strangers need the invite code <code>OpenOnion</code> (or payment).</small></span>
-                  </label>
-                  <label class="trust-option">
-                    <input type="radio" name="trust" value="strict">
-                    <span class="trust-body"><b>Strict</b><small>Whitelist only — nobody connects unless you add them.</small></span>
-                  </label>
-                </fieldset>
+                <div id="f-custom-access-summary" class="toolkit-included capability-access" data-risk="open">
+                  <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></span>
+                  <span class="tk-text"><b id="f-custom-access-title">Open access</b><small id="f-custom-access-copy">Selected capabilities are safe, so anyone can connect.</small></span>
+                  <span id="f-custom-access-badge" class="risk-badge is-safe">Open</span>
+                </div>
+                <label id="f-custom-invite-wrap" class="field capability-code-field" hidden>
+                  <span>Invite code</span>
+                  <input id="f-custom-invite-code" type="text" value="developer"
+                         minlength="4" maxlength="64" pattern="[A-Za-z0-9_-]{4,64}"
+                         autocomplete="off" autocapitalize="none" spellcheck="false">
+                </label>
                 <div class="field-note">
                   <span class="note-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
-                  <span>A free port is auto-assigned. Identity &amp; QR are ready now — the agent only starts when you press Start.</span>
+                  <span id="f-custom-access-note">Access is set automatically from the highest-risk capability you selected.</span>
                 </div>
               </div>
               <div id="f-co-ai-access" hidden>

@@ -245,9 +245,10 @@ function updateCard(card, agent) {
   modelEl.textContent = agent.model;
   modelEl.title = agent.model;
 
-  // Toolkits → violet chips. Only (re)build when they actually change, so the
+  // Capabilities → violet chips. Only (re)build when they actually change, so the
   // periodic /ws/status refresh doesn't rebuild the DOM and flicker the card.
-  const tkKey = `${agent.preset || 'custom'}:${(agent.toolkits || []).join('')}`;
+  const capabilities = agent.capabilities || agent.toolkits || [];
+  const tkKey = `${agent.preset || 'custom'}:${capabilities.join('')}`;
   if (card._tkKey !== tkKey) {
     card._tkKey = tkKey;
     fitChips(card);
@@ -275,13 +276,13 @@ function updateCard(card, agent) {
   }
 }
 
-// Render toolkit chips into the sub-row. `more` appends a trailing "…" chip.
+// Render capability chips into the sub-row. `more` appends a trailing "…" chip.
 function renderChips(wrap, list, more, fullTitle) {
   wrap.textContent = '';
   for (const name of list) {
     const chip = document.createElement('span');
     chip.className = 'tk-chip';
-    chip.textContent = name;
+    chip.textContent = CAPABILITY_LABEL[name] || name;
     wrap.appendChild(chip);
   }
   if (more) {
@@ -292,15 +293,15 @@ function renderChips(wrap, list, more, fullTitle) {
     wrap.appendChild(m);
   }
 }
-// Priority: user-added toolkits first, the default "utility" last. Show up to 3;
+// Priority: user-added capabilities first, the default "utility" last. Show up to 3;
 // 4+ → three chips + a "…". If even that overflows the row, drop chips (keep "…").
 function fitChips(card) {
   const wrap = $('.toolkits-chips', card);
   if (!wrap) return;
   const agent = card._agent;
-  const full = agent?.preset === 'co-ai' ? ['co ai'] : (agent?.toolkits || []);
+  const full = agent?.preset === 'co-ai' ? ['co ai'] : (agent?.capabilities || agent?.toolkits || []);
   const ordered = [...full.filter((t) => t !== 'utility'), ...full.filter((t) => t === 'utility')];
-  const title = full.join(', ');
+  const title = full.map((name) => CAPABILITY_LABEL[name] || name).join(', ');
   let n = Math.min(3, ordered.length);
   renderChips(wrap, ordered.slice(0, n), ordered.length > n, title);
   if (!card.isConnected) return;                          // no layout yet — observer re-fits
@@ -904,6 +905,38 @@ const visibleWizardSteps = () => isCoAiTemplate() ? [0, 1, 2, 4] : [0, 1, 2, 3, 
 const wizardPosition = () => Math.max(0, visibleWizardSteps().indexOf(wizardStep));
 const isFinalWizardStep = () => wizardPosition() === visibleWizardSteps().length - 1;
 
+const CAPABILITY_RISK = { utility: 0, web: 0, image: 0, files: 1, 'file-write': 2, shell: 2, browser: 2 };
+const CAPABILITY_LABEL = {
+  utility: 'Utility', web: 'Web fetch', image: 'Image', files: 'File reading',
+  'file-write': 'File editing', shell: 'Shell', browser: 'Browser',
+};
+const selectedCapabilities = () => [
+  'utility',
+  ...document.querySelectorAll('#create-form input[name="capability"]:checked'),
+].map((item) => typeof item === 'string' ? item : item.value);
+
+function customAccessPolicy() {
+  const tier = Math.max(...selectedCapabilities().map((name) => CAPABILITY_RISK[name] || 0));
+  if (tier === 2) return { tier, trust: 'strict', title: 'Strict access', badge: 'Strict', copy: 'Dangerous capabilities require invite-only access.', note: 'File editing, Shell, and Browser can change local or external state. Tool approvals still apply.' };
+  if (tier === 1) return { tier, trust: 'careful', title: 'Careful access', badge: 'Careful', copy: 'Local file reading requires an invite code.', note: 'Only clients admitted with this code can read or search local files.' };
+  return { tier, trust: 'open', title: 'Open access', badge: 'Open', copy: 'Selected capabilities are safe, so anyone can connect.', note: 'Access is set automatically from the highest-risk capability you selected.' };
+}
+
+function syncCustomAccess() {
+  const policy = customAccessPolicy();
+  const summary = $('#f-custom-access-summary');
+  summary.dataset.risk = policy.trust;
+  $('#f-custom-access-title').textContent = policy.title;
+  $('#f-custom-access-copy').textContent = policy.copy;
+  $('#f-custom-access-note').textContent = policy.note;
+  const badge = $('#f-custom-access-badge');
+  badge.textContent = policy.badge;
+  badge.className = `risk-badge ${policy.tier === 0 ? 'is-safe' : policy.tier === 1 ? 'is-careful' : 'is-strict'}`;
+  $('#f-custom-invite-wrap').hidden = policy.tier === 0;
+  if (!wizardStacked && wizardStep === 4 && $('#app').classList.contains('is-creating')) paintWizard(true);
+  return policy;
+}
+
 function stepHeight(n) {
   const step = $(`.wizard-step[data-step="${n}"]`);
   return step ? step.offsetHeight : 0;
@@ -978,6 +1011,7 @@ function syncTemplateFields({ resetModel = false } = {}) {
     ? 'A stateful coding agent with full tools and persistent context.'
     : 'A lightweight agent with the capabilities you choose.';
   $('#create-view').classList.toggle('is-co-ai', coAi);
+  syncCustomAccess();
   if (resetModel) {
     $('#f-model').value = 'co/gemini-3.5-flash';
     $('#f-model-custom-wrap').hidden = true;
@@ -1027,8 +1061,11 @@ function validateStep(n) {
     if (model === '__custom') model = $('#f-model-custom').value.trim();
     if (!model) { errEl.textContent = 'Pick or type a model.'; errEl.hidden = false; return false; }
   }
-  if (n === 4 && isCoAiTemplate()) {
-    const code = $('#f-invite-code').value.trim();
+  if (n === 4) {
+    const coAi = isCoAiTemplate();
+    const policy = customAccessPolicy();
+    const code = coAi ? $('#f-invite-code').value.trim() : $('#f-custom-invite-code').value.trim();
+    if (!coAi && policy.tier === 0) return true;
     if (!/^[A-Za-z0-9_-]{4,64}$/.test(code)) {
       errEl.textContent = 'Use 4–64 letters, numbers, hyphens, or underscores for the invite code.';
       errEl.hidden = false; return false;
@@ -1104,6 +1141,14 @@ function initCreateModal() {
     $('#create-error').hidden = true;
     syncTemplateFields({ resetModel: true });
   });
+  document.querySelectorAll('#create-form input[name="capability"]').forEach((checkbox) => {
+    checkbox.addEventListener('change', () => {
+      // File editing already includes read/search; keep the choices mutually exclusive.
+      if (checkbox.checked && checkbox.value === 'file-write') $('#create-form input[value="files"]').checked = false;
+      if (checkbox.checked && checkbox.value === 'files') $('#create-form input[value="file-write"]').checked = false;
+      syncCustomAccess();
+    });
+  });
   $('#f-model').addEventListener('change', (e) => {
     const custom = e.target.value === '__custom';
     $('#f-model-custom-wrap').hidden = !custom;
@@ -1142,14 +1187,16 @@ function initCreateModal() {
     if (model === '__custom') model = $('#f-model-custom').value.trim();
     const preset = $('#f-template').value;
     const coAi = preset === 'co-ai';
-    const optional = coAi ? [] : [...document.querySelectorAll('#create-form input[name="toolkit"]:checked')].map((cb) => cb.value);
-    const toolkits = coAi ? [] : ['utility', ...optional];   // Utility is always included on custom agents
-    const trust = coAi ? 'strict' : document.querySelector('#create-form input[name="trust"]:checked')?.value || 'open';
-    const invite_code = coAi ? $('#f-invite-code').value.trim() : null;
+    const capabilities = coAi ? [] : selectedCapabilities();
+    const policy = customAccessPolicy();
+    const trust = coAi ? 'strict' : policy.trust;
+    const invite_code = coAi
+      ? $('#f-invite-code').value.trim()
+      : policy.tier > 0 ? $('#f-custom-invite-code').value.trim() : null;
 
     if (!name) { errEl.textContent = 'Give the agent a name.'; errEl.hidden = false; if (!wizardStacked) goWizard(0); return; }
     if (!model) { errEl.textContent = 'Pick or type a model.'; errEl.hidden = false; if (!wizardStacked) goWizard(2); return; }
-    if (coAi && !/^[A-Za-z0-9_-]{4,64}$/.test(invite_code)) {
+    if ((coAi || policy.tier > 0) && !/^[A-Za-z0-9_-]{4,64}$/.test(invite_code)) {
       errEl.textContent = 'Use 4–64 letters, numbers, hyphens, or underscores for the invite code.';
       errEl.hidden = false; if (!wizardStacked) goWizard(4); return;
     }
@@ -1158,7 +1205,7 @@ function initCreateModal() {
     submit.disabled = true;
     submit.textContent = 'Creating…';
     try {
-      const detail = await api.createAgent({ name, model, toolkits, trust, preset, invite_code });
+      const detail = await api.createAgent({ name, model, capabilities, trust, preset, invite_code });
       closeCreateModal();
       await refreshAgents();
       toast(`${detail.name} created — QR ready. Press Start to bring it online.`);
@@ -1277,10 +1324,12 @@ function renderDrawerFields(detail) {
     ['Template', detail.preset === 'co-ai' ? 'co ai' : 'Custom Agent'],
     ['Model', detail.model],
     ['Port', String(detail.port)],
-    [detail.preset === 'co-ai' ? 'Capabilities' : 'Toolkits', detail.preset === 'co-ai' ? 'Full coding toolkit' : (detail.toolkits || []).join(' · ') || '—'],
+    ['Capabilities', detail.preset === 'co-ai'
+      ? 'Full coding toolkit'
+      : (detail.capabilities || detail.toolkits || []).map((name) => CAPABILITY_LABEL[name] || name).join(' · ') || '—'],
     ['Access', detail.preset === 'co-ai' ? 'Invite only' : capitalize(detail.trust || 'open')],
   ];
-  if (detail.preset === 'co-ai' && detail.invite_code) {
+  if (detail.invite_code) {
     configuration.push(['Invite code', copyableValue(detail.invite_code)]);
   }
   info.appendChild(detailGroup('Configuration', configuration));

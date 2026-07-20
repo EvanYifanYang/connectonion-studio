@@ -25,7 +25,7 @@ class CoAiWizardContractTests(unittest.TestCase):
 
     def test_create_payload_includes_preset_and_invite_code(self) -> None:
         self.assertIn(
-            "api.createAgent({ name, model, toolkits, trust, preset, invite_code })",
+            "api.createAgent({ name, model, capabilities, trust, preset, invite_code })",
             JS,
         )
 

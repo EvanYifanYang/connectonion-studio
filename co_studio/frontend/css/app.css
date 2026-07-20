@@ -826,6 +826,13 @@ fieldset.toolkits { border: none; margin: 0 0 14px; padding: 0; }
 .tk-text { flex: 1; min-width: 0; }
 .toolkit-option b { font-size: 14px; font-weight: 600; }
 .toolkit-option small { display: block; color: var(--ink-2); font-size: 12px; margin-top: 1px; }
+.risk-badge {
+  flex: none; align-self: center; padding: 3px 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: 0.02em; text-transform: uppercase;
+}
+.risk-badge.is-safe { color: #36724b; background: rgba(74, 159, 104, 0.13); }
+.risk-badge.is-careful { color: #8a6417; background: rgba(211, 157, 49, 0.16); }
+.risk-badge.is-strict { color: var(--danger); background: var(--danger-soft); }
 
 /* Utility: always included (an info panel, not a checkbox) */
 .toolkit-included {
@@ -835,6 +842,11 @@ fieldset.toolkits { border: none; margin: 0 0 14px; padding: 0; }
 }
 .toolkit-included .tk-text b { font-size: 14px; font-weight: 600; }
 .toolkit-included small { display: block; color: var(--ink-2); font-size: 12px; margin-top: 3px; }
+.capability-access[data-risk="careful"] { background: rgba(211, 157, 49, 0.12); }
+.capability-access[data-risk="careful"] .tk-ico { background: var(--elevated); color: #9a721d; }
+.capability-access[data-risk="strict"] { background: var(--danger-soft); }
+.capability-access[data-risk="strict"] .tk-ico { background: var(--elevated); color: var(--danger); }
+.capability-code-field { margin-top: 14px; }
 .co-ai-warning { background: var(--danger-soft); }
 .co-ai-warning .tk-ico { background: var(--elevated); color: var(--danger); }
 .co-ai-code-field { margin-top: 14px; }
