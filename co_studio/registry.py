@@ -62,12 +62,59 @@ def agent_dir(slug: str) -> Path:
     return config.AGENTS_DIR / slug
 
 
-def save(meta: AgentMeta) -> None:
-    """Write meta.json atomically (temp file + rename) so a crash never leaves it half-written."""
-    path = agent_dir(meta.slug) / "meta.json"
+def _write_metadata(path: Path, data: dict[str, object]) -> None:
+    """Atomically write a complete metadata mapping."""
     tmp = path.with_name("meta.json.tmp")
-    tmp.write_text(json.dumps(dataclasses.asdict(meta), indent=2) + "\n")
+    tmp.write_text(json.dumps(data, indent=2) + "\n")
     os.replace(tmp, path)
+
+
+def save(meta: AgentMeta) -> None:
+    """Write the current schema plus the legacy capability alias atomically.
+
+    ``toolkits`` keeps an older installed Studio able to open the registry after a
+    newer version has created or modified an agent. New code treats ``capabilities``
+    as authoritative and always re-synchronises the alias on save.
+    """
+    path = agent_dir(meta.slug) / "meta.json"
+    data: dict[str, object] = dataclasses.asdict(meta)
+    data["toolkits"] = list(meta.capabilities)
+    _write_metadata(path, data)
+
+
+def migrate_capability_aliases() -> int:
+    """Make every readable metadata file safe for both old and new Studio versions.
+
+    Old-only files gain ``capabilities``; new-only files gain ``toolkits``. If both
+    exist but disagree, the current ``capabilities`` value wins. Unknown/new fields
+    are preserved because the raw JSON mapping is updated rather than re-serialising
+    through ``AgentMeta``.
+    """
+    migrated = 0
+    with locked():
+        for directory in sorted(config.AGENTS_DIR.iterdir()):
+            path = directory / "meta.json"
+            if not directory.is_dir() or not path.exists():
+                continue
+            try:
+                data = json.loads(path.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(data, dict):
+                continue
+            capabilities = data.get("capabilities")
+            if capabilities is None:
+                capabilities = data.get("toolkits")
+            if not isinstance(capabilities, list):
+                continue
+            capabilities = list(capabilities)
+            if data.get("capabilities") == capabilities and data.get("toolkits") == capabilities:
+                continue
+            data["capabilities"] = capabilities
+            data["toolkits"] = capabilities
+            _write_metadata(path, data)
+            migrated += 1
+    return migrated
 
 
 def load(slug: str) -> AgentMeta | None:

@@ -43,6 +43,9 @@ def _auto_authenticate() -> None:
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Run the doctor, kick off first-run auth, adopt orphan agents, and drive the health poll."""
     registry.ensure_dirs()
+    migrated = registry.migrate_capability_aliases()
+    if migrated:
+        print(f"[co-studio] metadata compatibility updated for {migrated} agent(s)", flush=True)
     # Best-effort, on a daemon thread so the server binds immediately AND a slow first-run auth
     # call can never delay shutdown. The key lands within a few seconds; the onboarding screen
     # (2s poll) dismisses itself once /api/setup/status flips to key_ok.
