@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import WebKit
+import Sparkle
 
 /// A WKWebView that fills the window and shows the studio's existing web UI.
 struct WebView: NSViewRepresentable {
@@ -15,18 +16,35 @@ struct WebView: NSViewRepresentable {
         // exception (only the "localhost" hostname would need NSAllowsLocalNetworking — see README).
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
 
+        // --- Sparkle bridge -------------------------------------------------------------------
+        // Tell the web UI it's running inside the native app (so it shows "Relaunch to update"
+        // instead of the pip/pipx command), and expose a tiny JS API to drive Sparkle.
+        let bridge = """
+        window.__coStudioNative = true;
+        window.__coStudio = {
+          installUpdate: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'installUpdate' }); },
+          dismissUpdate: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'dismissUpdate' }); },
+          checkForUpdates: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'checkForUpdates' }); }
+        };
+        """
+        let script = WKUserScript(source: bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        configuration.userContentController.addUserScript(script)
+        configuration.userContentController.add(context.coordinator, name: "coStudio")
+
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         // Paper base (CSS --canvas) so the load-in moment shows brand color, not a white flash — matches
         // the window + spinner. Public API (macOS 12+), replaces the old private `drawsBackground` KVC.
         webView.underPageBackgroundColor = DesktopChrome.canvasNSColor
+        WebUpdater.shared.webView = webView   // let Sparkle push update state into this page
         webView.load(URLRequest(url: url))
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onReady = onReady   // keep the callback fresh across view updates
+        WebUpdater.shared.webView = webView
         if webView.url != url {
             webView.load(URLRequest(url: url))
         }
@@ -35,7 +53,7 @@ struct WebView: NSViewRepresentable {
     /// Keeps in-window navigation on our loopback origin and routes everything else to the system
     /// browser. WKWebView drops `target=_blank` / `window.open` by default, so those links (GitHub,
     /// "Powered by OpenOnion", onboarding docs) are dead without this handler.
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         /// Fired once the page finishes loading (so it has painted its paper background) — the cue to
         /// fade the paper cover, so the WKWebView's white loading document is never seen.
         var onReady: () -> Void
@@ -43,6 +61,19 @@ struct WebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             onReady()
+        }
+
+        /// JS → Swift: the web "Relaunch to update" button routes through here to Sparkle.
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "coStudio",
+                  let body = message.body as? [String: Any],
+                  let action = body["action"] as? String else { return }
+            switch action {
+            case "installUpdate":    WebUpdater.shared.installAndRelaunch()
+            case "dismissUpdate":    WebUpdater.shared.dismiss()
+            case "checkForUpdates":  WebUpdater.shared.checkForUpdates()
+            default:                 break
+            }
         }
 
         func webView(_ webView: WKWebView,
@@ -92,5 +123,120 @@ struct WebView: NSViewRepresentable {
             default: NSWorkspace.shared.open(url)
             }
         }
+    }
+}
+
+// MARK: - Sparkle, driven by the web UI
+
+/// Custom Sparkle `SPUUserDriver`: Sparkle does all the real work (check → download → verify →
+/// install → relaunch); we suppress its native windows and instead push update state into the web UI
+/// and gate the final install+relaunch on the page's "Relaunch to update" button.
+@MainActor
+final class WebUpdater: NSObject, SPUUserDriver {
+    static let shared = WebUpdater()
+
+    /// The live page; set by `WebView`. Used to push update state via `window.__coStudioUpdate(...)`.
+    weak var webView: WKWebView?
+
+    private var updater: SPUUpdater?
+    /// The most recent "should I proceed?" reply from Sparkle — fired when the web clicks Relaunch.
+    private var pendingReply: ((SPUUserUpdateChoice) -> Void)?
+    private var latestVersion = ""
+    /// True once the user hit "Relaunch to update" — makes download → install → relaunch one action.
+    private var committed = false
+
+    private override init() { super.init() }
+
+    /// Create + start the updater with THIS object as the user driver. Automatic background checks +
+    /// downloads come from Info.plist (SUFeedURL / SUEnableAutomaticChecks / SUAutomaticallyUpdate).
+    func start() {
+        guard updater == nil else { return }
+        let u = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: self, delegate: nil)
+        do {
+            try u.start()
+            updater = u
+        } catch {
+            NSLog("[Sparkle] startUpdater failed: \(error.localizedDescription)")
+        }
+    }
+
+    func checkForUpdates() { updater?.checkForUpdates() }
+
+    /// Web clicked "Relaunch to update".
+    func installAndRelaunch() {
+        committed = true
+        pendingReply?(.install)
+        pendingReply = nil
+    }
+
+    /// Web dismissed the update.
+    func dismiss() {
+        committed = false
+        pendingReply?(.dismiss)
+        pendingReply = nil
+    }
+
+    // MARK: push state → web
+
+    private func push(_ status: String, version: String? = nil) {
+        let payload: [String: String] = ["status": status, "version": version ?? latestVersion]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView?.evaluateJavaScript("window.__coStudioUpdate && window.__coStudioUpdate(\(json))", completionHandler: nil)
+    }
+
+    // MARK: SPUUserDriver
+
+    func show(_ request: SPUUpdatePermissionRequest, reply: @escaping (SUUpdatePermissionResponse) -> Void) {
+        reply(SUUpdatePermissionResponse(automaticUpdateChecks: true, sendSystemProfile: false))
+    }
+
+    func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {}
+
+    func showUpdateFound(with appcastItem: SUAppcastItem, state: SPUUserUpdateState, reply: @escaping (SPUUserUpdateChoice) -> Void) {
+        latestVersion = appcastItem.displayVersionString
+        pendingReply = reply
+        // If Sparkle already downloaded it in the background, the web can offer "Relaunch to update"
+        // straight away; otherwise the click downloads first, then relaunches.
+        push(state.stage == .downloaded ? "readyToRelaunch" : "available")
+    }
+
+    func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {}
+
+    func showUpdateReleaseNotesFailedToDownloadWithError(_ error: Error) {}
+
+    func showUpdateNotFoundWithError(_ error: Error) async { push("none") }
+
+    func showUpdaterError(_ error: Error) async { push("error") }
+
+    func showDownloadInitiated(cancellation: @escaping () -> Void) { push("downloading") }
+
+    func showDownloadDidReceiveExpectedContentLength(_ expectedContentLength: UInt64) {}
+
+    func showDownloadDidReceiveData(ofLength length: UInt64) {}
+
+    func showDownloadDidStartExtractingUpdate() { push("installing") }
+
+    func showExtractionReceivedProgress(_ progress: Double) {}
+
+    func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) {
+        if committed {
+            reply(.install)   // user already chose to relaunch — finish without a second click
+        } else {
+            pendingReply = reply
+            push("readyToRelaunch")
+        }
+    }
+
+    func showInstallingUpdate(withApplicationTerminated applicationTerminated: Bool, retryTerminatingApplication: @escaping () -> Void) {
+        push("installing")
+    }
+
+    func showUpdateInstalledAndRelaunched(_ relaunched: Bool) async {}
+
+    func dismissUpdateInstallation() {
+        committed = false
+        pendingReply = nil
+        push("idle")
     }
 }

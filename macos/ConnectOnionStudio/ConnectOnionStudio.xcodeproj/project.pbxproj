@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		20BD90F2300DBE7C001CA366 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 20BD90F1300DBE7C001CA366 /* Sparkle */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		20D46752300BD2EB006909BA /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				20BD90F2300DBE7C001CA366 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = ConnectOnionStudio;
 			packageProductDependencies = (
+				20BD90F1300DBE7C001CA366 /* Sparkle */,
 			);
 			productName = ConnectOnionStudio;
 			productReference = 20D46744300BD2EA006909BA /* ConnectOnionStudio.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = 20D4673B300BD2EA006909BA;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				20BD90F0300DBE7C001CA366 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 20D46745300BD2EA006909BA /* Products */;
 			projectDirPath = "";
@@ -403,6 +412,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_FILE = "ConnectOnionStudio/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -434,6 +444,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_FILE = "ConnectOnionStudio/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -571,6 +582,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		20BD90F0300DBE7C001CA366 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		20BD90F1300DBE7C001CA366 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 20BD90F0300DBE7C001CA366 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 20D4673C300BD2EA006909BA /* Project object */;
 }

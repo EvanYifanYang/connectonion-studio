@@ -28,6 +28,9 @@ struct ConnectOnionStudioApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         enforceSingleInstance()
+        // Kick off Sparkle's background update checks. The updater is loopback-independent; it reads
+        // SUFeedURL/SUPublicEDKey from Info.plist and drives the web UI's banner via WebUpdater.
+        MainActor.assumeIsolated { WebUpdater.shared.start() }
     }
 
     // Closing the (single) window quits the app, which routes through applicationWillTerminate below.
