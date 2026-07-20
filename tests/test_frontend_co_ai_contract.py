@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "co_studio/frontend/index.html").read_text()
 JS = (ROOT / "co_studio/frontend/js/app.js").read_text()
+CSS = (ROOT / "co_studio/frontend/css/app.css").read_text()
 
 
 class CoAiWizardContractTests(unittest.TestCase):
@@ -27,6 +28,11 @@ class CoAiWizardContractTests(unittest.TestCase):
             "api.createAgent({ name, model, toolkits, trust, preset, invite_code })",
             JS,
         )
+
+    def test_template_help_is_one_line_in_steps_and_hidden_when_stacked(self) -> None:
+        self.assertIn("A lightweight agent with the capabilities you choose.", HTML)
+        self.assertIn("A stateful coding agent with full tools and persistent context.", JS)
+        self.assertIn("#create-view.stacked #f-template-help { display: none; }", CSS)
 
 
 if __name__ == "__main__":

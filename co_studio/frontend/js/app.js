@@ -973,9 +973,10 @@ function syncTemplateFields({ resetModel = false } = {}) {
   $('#create-toolkit-step').hidden = coAi;
   $('#f-custom-access').hidden = coAi;
   $('#f-co-ai-access').hidden = !coAi;
-  $('#f-template-help').textContent = coAi
-    ? 'A stateful coding agent with files, shell, browser, planning, skills, and persistent todos.'
-    : 'Build a lightweight agent from the toolkits you select.';
+  const templateHelp = $('#f-template-help');
+  templateHelp.textContent = coAi
+    ? 'A stateful coding agent with full tools and persistent context.'
+    : 'A lightweight agent with the capabilities you choose.';
   $('#create-view').classList.toggle('is-co-ai', coAi);
   if (resetModel) {
     $('#f-model').value = coAi ? 'co/gemini-3.5-flash' : 'co/gemini-2.5-flash';
