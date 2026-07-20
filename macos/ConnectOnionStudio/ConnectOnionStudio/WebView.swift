@@ -6,9 +6,13 @@ import Sparkle
 /// A WKWebView that fills the window and shows the studio's existing web UI.
 struct WebView: NSViewRepresentable {
     let url: URL
+    let appearance: StudioAppearance
     var onReady: () -> Void = {}
+    var onAppearanceChange: (StudioAppearance) -> Void = { _ in }
 
-    func makeCoordinator() -> Coordinator { Coordinator(onReady: onReady) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onReady: onReady, onAppearanceChange: onAppearanceChange)
+    }
 
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -24,7 +28,8 @@ struct WebView: NSViewRepresentable {
         window.__coStudio = {
           installUpdate: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'installUpdate' }); },
           dismissUpdate: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'dismissUpdate' }); },
-          checkForUpdates: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'checkForUpdates' }); }
+          checkForUpdates: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'checkForUpdates' }); },
+          setAppearance: function (appearance) { window.webkit.messageHandlers.coStudio.postMessage({ action: 'setAppearance', appearance: appearance }); }
         };
         """
         let script = WKUserScript(source: bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true)
@@ -36,7 +41,7 @@ struct WebView: NSViewRepresentable {
         webView.uiDelegate = context.coordinator
         // Paper base (CSS --canvas) so the load-in moment shows brand color, not a white flash — matches
         // the window + spinner. Public API (macOS 12+), replaces the old private `drawsBackground` KVC.
-        webView.underPageBackgroundColor = DesktopChrome.canvasNSColor
+        webView.underPageBackgroundColor = appearance.canvasNSColor
         WebUpdater.shared.webView = webView   // let Sparkle push update state into this page
         webView.load(URLRequest(url: url))
         return webView
@@ -44,6 +49,8 @@ struct WebView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onReady = onReady   // keep the callback fresh across view updates
+        context.coordinator.onAppearanceChange = onAppearanceChange
+        webView.underPageBackgroundColor = appearance.canvasNSColor
         WebUpdater.shared.webView = webView
         if webView.url != url {
             webView.load(URLRequest(url: url))
@@ -57,7 +64,12 @@ struct WebView: NSViewRepresentable {
         /// Fired once the page finishes loading (so it has painted its paper background) — the cue to
         /// fade the paper cover, so the WKWebView's white loading document is never seen.
         var onReady: () -> Void
-        init(onReady: @escaping () -> Void) { self.onReady = onReady }
+        var onAppearanceChange: (StudioAppearance) -> Void
+        init(onReady: @escaping () -> Void,
+             onAppearanceChange: @escaping (StudioAppearance) -> Void) {
+            self.onReady = onReady
+            self.onAppearanceChange = onAppearanceChange
+        }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             onReady()
@@ -72,6 +84,10 @@ struct WebView: NSViewRepresentable {
             case "installUpdate":    WebUpdater.shared.installAndRelaunch()
             case "dismissUpdate":    WebUpdater.shared.dismiss()
             case "checkForUpdates":  WebUpdater.shared.checkForUpdates()
+            case "setAppearance":
+                guard let raw = body["appearance"] as? String,
+                      let appearance = StudioAppearance(rawValue: raw) else { return }
+                onAppearanceChange(appearance)
             default:                 break
             }
         }

@@ -1,11 +1,11 @@
-"""Studio settings: the agents storage location (with migration)."""
+"""Studio settings: appearance and the agents storage location."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from .. import storage
+from .. import config, storage
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -14,6 +14,28 @@ class StorageBody(BaseModel):
     """POST /api/settings/storage payload."""
 
     path: str
+
+
+class AppearanceBody(BaseModel):
+    """POST /api/settings/appearance payload."""
+
+    appearance: str
+
+
+@router.get("/appearance")
+def get_appearance() -> dict[str, str]:
+    """The persisted appearance shared across browser origins and the macOS shell."""
+    return {"appearance": config.appearance()}
+
+
+@router.post("/appearance")
+def set_appearance(body: AppearanceBody) -> dict[str, str]:
+    """Persist the user's explicit appearance choice."""
+    try:
+        config.save_appearance(body.appearance)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"appearance": body.appearance}
 
 
 @router.get("/storage")

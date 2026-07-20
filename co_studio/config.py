@@ -7,12 +7,15 @@ import os
 import sys
 from pathlib import Path
 
+from filelock import FileLock
+
 STUDIO_HOST = "127.0.0.1"  # manager is loopback-only: agent ports are unauthenticated
 STUDIO_PORT = 9900
 AGENT_PORT_RANGE = range(8000, 8100)
 
 STUDIO_HOME = Path.home() / ".co-studio"
 SETTINGS_FILE = STUDIO_HOME / "config.json"
+SETTINGS_LOCK = STUDIO_HOME / "config.lock"
 DEFAULT_AGENTS_DIR = STUDIO_HOME / "agents"
 INDEX_LOCK = STUDIO_HOME / "index.lock"
 
@@ -25,12 +28,41 @@ def _read_settings() -> dict:
         return {}
 
 
+def _save_setting(key: str, value: object) -> None:
+    """Atomically update one persisted setting without losing concurrent changes."""
+    STUDIO_HOME.mkdir(parents=True, exist_ok=True)
+    with FileLock(str(SETTINGS_LOCK)):
+        data = _read_settings()
+        data[key] = value
+        tmp = SETTINGS_FILE.with_name(f"{SETTINGS_FILE.name}.tmp")
+        tmp.write_text(json.dumps(data, indent=2) + "\n")
+        os.replace(tmp, SETTINGS_FILE)
+
+
 def save_agents_dir(path: Path) -> None:
     """Persist the agents directory so the choice survives a restart."""
-    STUDIO_HOME.mkdir(parents=True, exist_ok=True)
-    data = _read_settings()
-    data["agents_dir"] = str(path)
-    SETTINGS_FILE.write_text(json.dumps(data, indent=2) + "\n")
+    _save_setting("agents_dir", str(path))
+
+
+APPEARANCES = ("warm", "lavender")
+
+
+def configured_appearance() -> str | None:
+    """Return the saved appearance, or None before the user has made/migrated a choice."""
+    value = _read_settings().get("appearance")
+    return value if value in APPEARANCES else None
+
+
+def appearance() -> str:
+    """The saved appearance with Warm as the first-run fallback."""
+    return configured_appearance() or "warm"
+
+
+def save_appearance(value: str) -> None:
+    """Persist a validated appearance independently of the web origin/manager port."""
+    if value not in APPEARANCES:
+        raise ValueError(f"unknown appearance: {value!r}")
+    _save_setting("appearance", value)
 
 
 # Where agent folders live. Loaded from config.json (falls back to the default),

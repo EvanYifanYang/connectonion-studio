@@ -23,12 +23,18 @@
     if (new URLSearchParams(location.search).has('desktop')) {
       document.documentElement.classList.add('desktop');
     }
-    // Appearance skin (Settings → Appearance). Warm is the base/default; restore a saved
-    // Lavender choice here, pre-paint, so there's never a flash of the wrong skin.
+    // Appearance skin (Settings → Appearance). The backend injects the Studio-wide saved choice,
+    // which survives changing manager ports. An empty value means this is an upgrade from the old
+    // localStorage-only behavior, so migrate that value once; Warm remains the first-run default.
+    const serverAppearance = '__CO_STUDIO_APPEARANCE__';
+    let initialAppearance = ['warm', 'lavender'].includes(serverAppearance) ? serverAppearance : null;
     try {
-      const ap = localStorage.getItem('co-studio-appearance') || 'warm';
-      if (ap === 'lavender') document.documentElement.dataset.appearance = 'lavender';
-    } catch (_) { /* storage off → Warm base theme */ }
+      initialAppearance ||= localStorage.getItem('co-studio-appearance');
+    } catch (_) { /* storage off → use the Studio setting/default */ }
+    if (!['warm', 'lavender'].includes(initialAppearance)) initialAppearance = 'warm';
+    window.__coStudioInitialAppearance = initialAppearance;
+    window.__coStudioAppearanceNeedsMigration = !serverAppearance;
+    if (initialAppearance === 'lavender') document.documentElement.dataset.appearance = 'lavender';
   </script>
 </head>
 <body>

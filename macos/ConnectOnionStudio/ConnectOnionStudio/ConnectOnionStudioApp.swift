@@ -65,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 struct ContentView: View {
     @ObservedObject var server: StudioServer
+    @State private var appearance = StudioAppearance.load()
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -85,7 +86,7 @@ struct ContentView: View {
             // Lets the spinner / error phases drag from anywhere; the strip above covers the WebView.
             window.isMovableByWindowBackground = true
             // Paper (not system white) so the launch seam never flashes before the web UI paints.
-            window.backgroundColor = DesktopChrome.canvasNSColor
+            window.backgroundColor = appearance.canvasNSColor
         })
         .onAppear { server.start() }
         // Teardown is applicationWillTerminate's job (see AppDelegate) — NOT onDisappear, which is
@@ -95,13 +96,13 @@ struct ContentView: View {
     @ViewBuilder private var phaseContent: some View {
         switch server.phase {
         case .running(let url):
-            RunningView(url: url).id(url)   // fresh cover state per launch (e.g. after Retry)
+            RunningView(url: url, appearance: $appearance).id(url)   // fresh cover state per launch (e.g. after Retry)
         case .failed(let message):
             LaunchErrorView(message: message,
                             onRetry: server.retry,
                             onCopyLogs: server.copyLogs)
         case .starting:
-            StartingView()
+            StartingView(appearance: appearance)
         }
     }
 }
@@ -109,14 +110,17 @@ struct ContentView: View {
 /// The paper "Starting…" cover — shared by the launch phase AND the hold-over during page load, so the
 /// spinner is visually continuous from launch straight into the web UI's own splash.
 private struct StartingView: View {
+    let appearance: StudioAppearance
+
     var body: some View {
         VStack(spacing: 12) {
             ProgressView()
+                .tint(Color(nsColor: appearance.accentNSColor))
             Text("Starting ConnectOnion Studio…")
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: DesktopChrome.canvasNSColor))   // paper, matches the web UI's splash
+        .background(Color(nsColor: appearance.canvasNSColor))   // paper, matches the web UI's splash
     }
 }
 
@@ -125,12 +129,18 @@ private struct StartingView: View {
 /// in the seam between the spinner and the app's own splash animation.
 private struct RunningView: View {
     let url: URL
+    @Binding var appearance: StudioAppearance
     @State private var pageReady = false
 
     var body: some View {
         ZStack {
-            WebView(url: url, onReady: { pageReady = true })
-            StartingView()
+            WebView(
+                url: url,
+                appearance: appearance,
+                onReady: { pageReady = true },
+                onAppearanceChange: { appearance = $0 }
+            )
+            StartingView(appearance: appearance)
                 .opacity(pageReady ? 0 : 1)
                 .allowsHitTesting(!pageReady)
         }
@@ -180,6 +190,41 @@ struct LaunchErrorView: View {
 
 // MARK: - Native window chrome
 
+enum StudioAppearance: String {
+    case warm
+    case lavender
+
+    /// Read the same ~/.co-studio/config.json setting used by the backend. Unlike web storage, this
+    /// path is stable even though the native shell deliberately chooses a new free port each launch.
+    static func load() -> StudioAppearance {
+        let configURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".co-studio/config.json")
+        guard let data = try? Data(contentsOf: configURL),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let raw = object["appearance"] as? String,
+              let appearance = StudioAppearance(rawValue: raw) else { return .warm }
+        return appearance
+    }
+
+    var canvasNSColor: NSColor {
+        switch self {
+        case .warm:
+            return NSColor(srgbRed: 0xF0 / 255.0, green: 0xEE / 255.0, blue: 0xE6 / 255.0, alpha: 1)   // #F0EEE6
+        case .lavender:
+            return NSColor(srgbRed: 0xED / 255.0, green: 0xEC / 255.0, blue: 0xF6 / 255.0, alpha: 1)   // #EDECF6
+        }
+    }
+
+    var accentNSColor: NSColor {
+        switch self {
+        case .warm:
+            return NSColor(srgbRed: 0x9A / 255.0, green: 0x5B / 255.0, blue: 0x3A / 255.0, alpha: 1)   // #9A5B3A
+        case .lavender:
+            return NSColor(srgbRed: 0x6E / 255.0, green: 0x56 / 255.0, blue: 0xF2 / 255.0, alpha: 1)   // #6E56F2
+        }
+    }
+}
+
 enum DesktopChrome {
     /// Height of the reserved top strip; mirrors CSS `--titlebar-h: 30px` (html.desktop, app.css).
     static let titlebarHeight: CGFloat = 30
@@ -188,16 +233,6 @@ enum DesktopChrome {
     /// Clear the settings gear (.firstrun-gear: top:20 right:22 width:38 → ~60pt from the right edge).
     static let trailingInset: CGFloat = 72
 
-    /// The brand page background — CSS `--canvas` (theme.css): #F0EEE6 light, #262523 dark. Painted on
-    /// the window, the "Starting…" spinner, and the WebView's under-page color so the native shell
-    /// never flashes white/system-gray in the seam before the web UI's own paper splash renders.
-    /// Dynamic so it tracks the system appearance the WKWebView follows (`prefers-color-scheme`).
-    static let canvasNSColor = NSColor(name: nil) { appearance in
-        let dark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        return dark
-            ? NSColor(srgbRed: 0x26 / 255.0, green: 0x25 / 255.0, blue: 0x23 / 255.0, alpha: 1)   // #262523
-            : NSColor(srgbRed: 0xF0 / 255.0, green: 0xEE / 255.0, blue: 0xE6 / 255.0, alpha: 1)   // #F0EEE6
-    }
 }
 
 /// Grabs the hosting NSWindow once it exists and applies native-shell tweaks.

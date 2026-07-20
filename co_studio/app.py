@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager, suppress
 from typing import AsyncIterator
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import config, registry, setup_check
@@ -89,7 +89,12 @@ def create_app() -> FastAPI:
         """Serve the SPA (or a plain notice while the frontend is absent)."""
         page = config.FRONTEND_DIR / "index.html"
         if page.exists():
-            return FileResponse(page)
+            # Appearance cannot live only in localStorage: the macOS shell intentionally chooses a
+            # fresh free port each launch, and browser storage is isolated by port. Inject the saved
+            # Studio-wide choice before first paint; an empty value lets old localStorage migrate once.
+            appearance = config.configured_appearance() or ""
+            html = page.read_text().replace("__CO_STUDIO_APPEARANCE__", appearance)
+            return HTMLResponse(html)
         return HTMLResponse("<h1>ConnectOnion Studio</h1><p>frontend/ not built yet — the API is live under /api.</p>")
 
     return app

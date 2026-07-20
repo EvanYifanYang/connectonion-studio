@@ -57,18 +57,30 @@ function initTheme() {
 // choice is applied PRE-PAINT by the inline script in index.html; this only
 // syncs the Settings radios and re-applies live when the user switches.
 const APPEARANCE_KEY = 'co-studio-appearance';
-function applyAppearance(name) {
+function paintAppearance(name) {
   if (name === 'lavender') document.documentElement.dataset.appearance = 'lavender';
   else delete document.documentElement.dataset.appearance;   // Warm = no attribute (theme.css default)
-  try { localStorage.setItem(APPEARANCE_KEY, name === 'lavender' ? 'lavender' : 'warm'); } catch { /* storage off — session only */ }
+}
+function persistAppearance(name) {
+  const appearance = name === 'lavender' ? 'lavender' : 'warm';
+  try { localStorage.setItem(APPEARANCE_KEY, appearance); } catch { /* backend remains authoritative */ }
+  window.__coStudio?.setAppearance?.(appearance);   // native cover updates immediately
+  api.setAppearance(appearance).catch(() => {
+    toast('Theme changed for this session, but could not be saved.', 'danger');
+  });
+}
+function applyAppearance(name) {
+  paintAppearance(name);
+  persistAppearance(name);
 }
 function initAppearance() {
-  let saved = 'warm';
-  try { saved = localStorage.getItem(APPEARANCE_KEY) || 'warm'; } catch { /* ignore */ }
+  const saved = window.__coStudioInitialAppearance === 'lavender' ? 'lavender' : 'warm';
+  paintAppearance(saved);   // make the runtime state agree with the pre-paint state
   document.querySelectorAll('input[name="appearance"]').forEach((radio) => {
     radio.checked = radio.value === saved;
     radio.addEventListener('change', () => { if (radio.checked) applyAppearance(radio.value); });
   });
+  if (window.__coStudioAppearanceNeedsMigration) persistAppearance(saved);
 }
 
 // ---- agent list -----------------------------------------------------
