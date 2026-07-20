@@ -1,10 +1,10 @@
 /* ============================================================
-   ConnectOnion Studio — "Lavender" appearance  (DEFAULT skin)
+   ConnectOnion Studio — "Lavender" appearance  (optional skin)
 
    Applied by  <html data-appearance="lavender">, which the inline boot script in
-   index.html sets pre-paint by DEFAULT (and whenever the saved choice isn't "warm").
-   The Settings → Appearance toggle persists the choice in localStorage; picking Warm
-   is the opt-OUT (removes the attribute → base theme.css).
+   index.html restores pre-paint when Lavender is saved. The Settings → Appearance
+   toggle persists the choice in localStorage; Warm is the default and removes the
+   attribute, revealing the base theme.css.
 
    ISOLATION CONTRACT:
    - Every THEME rule below is scoped under :root[data-appearance="lavender"].
@@ -25,7 +25,7 @@
   --elevated:  #FFFFFF;   /* cards read as bright white glass on lavender */
   --elevated2: #FFFFFF;   /* brightest inset — inputs, code wells */
 
-  /* the one violet — same hue (shared accent across both appearances) */
+  /* Lavender keeps its violet accent; Warm owns the clay accent in theme.css. */
   --accent:      #6E56F2;
   --accent-soft: rgba(110, 86, 242, 0.12);
   --on-accent:   #FFFFFF;

@@ -2,7 +2,7 @@
    ConnectOnion Studio — brand tokens  (DESIGN.md §5, 1:1 iOS)
    Light + dark via prefers-color-scheme AND manual override:
      <html data-theme="light" | "dark">  (absent = follow system)
-   Iron rule: monochrome + ONE violet. --accent appears ONLY on
+   Iron rule: monochrome + ONE warm accent. --accent appears ONLY on
    primary buttons, the onion, selection states, the online dot.
    ============================================================ */
 
@@ -15,9 +15,9 @@
   --elevated:  #FAF9F5;   /* card — lighter than canvas, so it lifts by tone alone */
   --elevated2: #FFFFFF;   /* brightest inset — inputs, code wells */
 
-  /* the one violet */
-  --accent:      #6E56F2;
-  --accent-soft: rgba(110, 86, 242, 0.12);
+  /* warm clay — readable with white and distinct from destructive red */
+  --accent:      #9A5B3A;
+  --accent-soft: rgba(154, 91, 58, 0.13);
   --on-accent:   #FFFFFF;
 
   /* warm ink */

@@ -63,8 +63,8 @@ function applyAppearance(name) {
   try { localStorage.setItem(APPEARANCE_KEY, name === 'lavender' ? 'lavender' : 'warm'); } catch { /* storage off — session only */ }
 }
 function initAppearance() {
-  let saved = 'lavender';   // Lavender is the default skin; only an explicit choice of Warm turns it off
-  try { saved = localStorage.getItem(APPEARANCE_KEY) || 'lavender'; } catch { /* ignore */ }
+  let saved = 'warm';
+  try { saved = localStorage.getItem(APPEARANCE_KEY) || 'warm'; } catch { /* ignore */ }
   document.querySelectorAll('input[name="appearance"]').forEach((radio) => {
     radio.checked = radio.value === saved;
     radio.addEventListener('change', () => { if (radio.checked) applyAppearance(radio.value); });

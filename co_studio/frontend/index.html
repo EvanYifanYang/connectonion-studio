@@ -23,13 +23,12 @@
     if (new URLSearchParams(location.search).has('desktop')) {
       document.documentElement.classList.add('desktop');
     }
-    // Appearance skin (Settings → Appearance). DEFAULT is Lavender: apply the saved choice —
-    // or the Lavender default when nothing is saved — here, pre-paint, so there's never a flash
-    // of the wrong skin. Only an explicit "warm" turns the skin OFF (Warm is the base theme.css).
+    // Appearance skin (Settings → Appearance). Warm is the base/default; restore a saved
+    // Lavender choice here, pre-paint, so there's never a flash of the wrong skin.
     try {
-      const ap = localStorage.getItem('co-studio-appearance') || 'lavender';
-      if (ap !== 'warm') document.documentElement.dataset.appearance = ap;
-    } catch (_) { document.documentElement.dataset.appearance = 'lavender'; }   // storage off → still Lavender
+      const ap = localStorage.getItem('co-studio-appearance') || 'warm';
+      if (ap === 'lavender') document.documentElement.dataset.appearance = 'lavender';
+    } catch (_) { /* storage off → Warm base theme */ }
   </script>
 </head>
 <body>
@@ -355,11 +354,11 @@
             <span class="k">Theme</span>
             <div class="seg" role="radiogroup" aria-label="Appearance">
               <label class="seg-opt">
-                <input type="radio" name="appearance" value="warm">
+                <input type="radio" name="appearance" value="warm" checked>
                 <span>Warm</span>
               </label>
               <label class="seg-opt">
-                <input type="radio" name="appearance" value="lavender" checked>
+                <input type="radio" name="appearance" value="lavender">
                 <span>Lavender</span>
               </label>
             </div>
