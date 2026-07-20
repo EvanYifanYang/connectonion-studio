@@ -13,19 +13,20 @@ CSS = (ROOT / "co_studio/frontend/css/app.css").read_text()
 
 
 class CapabilityWizardContractTests(unittest.TestCase):
-    def test_capability_catalog_shows_all_risk_groups(self) -> None:
+    def test_capability_catalog_shows_standard_and_protected_groups(self) -> None:
         self.assertIn("<h3>Capabilities</h3>", HTML)
         for capability in ("web", "image", "files", "file-write", "shell", "browser"):
             self.assertIn(f'name="capability" value="{capability}"', HTML)
-        for level in ("public", "private", "powerful"):
-            self.assertIn(f'data-risk="{level}"', HTML)
-            self.assertIn(f"is-{level}", HTML)
-        self.assertIn(".capability-legend", CSS)
-        self.assertIn("<b>Standard</b><small>Invite optional</small>", HTML)
-        self.assertIn("<b>Sensitive</b><small>Invite required</small>", HTML)
-        self.assertIn('.toolkit-option[data-risk="public"] .tk-ico', CSS)
-        self.assertIn('.toolkit-option[data-risk="private"] .tk-ico', CSS)
-        self.assertIn('.toolkit-option[data-risk="powerful"] .tk-ico', CSS)
+        self.assertNotIn('class="capability-legend"', HTML)
+        self.assertNotIn(".capability-legend", CSS)
+        self.assertNotIn('class="capability-access-tag"', HTML)
+        self.assertEqual(HTML.count('class="capability-group"'), 2)
+        self.assertIn('<b>Standard</b><small>- Invite code optional</small>', HTML)
+        self.assertIn('<b>Protected</b><small>- Invite code required</small>', HTML)
+        self.assertEqual(HTML.count('class="toolkit-option" data-access="optional"'), 2)
+        self.assertEqual(HTML.count('class="toolkit-option" data-access="required"'), 4)
+        self.assertIn('.toolkit-option[data-access="optional"] .tk-ico', CSS)
+        self.assertIn('.toolkit-option[data-access="required"] .tk-ico', CSS)
         self.assertIn(".toolkits-grid .toolkit-option small { white-space: nowrap", CSS)
         self.assertNotIn(">Strict</span>", HTML)
         self.assertNotIn(">Invite</span>", HTML)
@@ -44,6 +45,10 @@ class CapabilityWizardContractTests(unittest.TestCase):
         self.assertIn("Create an invite code before continuing.", JS)
         self.assertIn("title: 'Invite-only access'", JS)
         self.assertIn("badge: 'Invite only'", JS)
+        self.assertEqual(JS.count("copy: 'New devices enter your code once.'"), 2)
+        self.assertIn("policy.tier === 0 ? 'is-safe' : 'is-strict'", JS)
+        self.assertIn('.capability-access[data-risk="careful"],', CSS)
+        self.assertIn('.risk-badge.is-strict { color: var(--danger); background: var(--elevated); }', CSS)
         self.assertIn("Approval is remembered for this device and this Agent only.", JS)
         self.assertIn("function accessLabel(agent)", JS)
         self.assertIn("$('.access-val', card).textContent = accessLabel(agent)", JS)

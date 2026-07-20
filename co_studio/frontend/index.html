@@ -226,44 +226,53 @@
                 </span>
                 <span class="included-badge">Included</span>
               </div>
-              <div class="capability-legend" aria-label="Capability access levels">
-                <span class="capability-legend-item is-public"><i aria-hidden="true"></i><span><b>Standard</b><small>Invite optional</small></span></span>
-                <span class="capability-legend-item is-private"><i aria-hidden="true"></i><span><b>Sensitive</b><small>Invite required</small></span></span>
-                <span class="capability-legend-item is-powerful"><i aria-hidden="true"></i><span><b>Powerful</b><small>Invite required</small></span></span>
-              </div>
               <p class="toolkit-optional-label">Choose what this agent can do (OPTIONAL)</p>
-              <fieldset class="toolkits toolkits-grid">
+              <fieldset class="toolkits">
                 <legend class="sr-only">Additional capabilities</legend>
-                <label class="toolkit-option" data-risk="public">
-                  <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.5 3.8 5.7 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.7-3.8-9S9.5 5.5 12 3z"/></svg></span>
-                  <span class="tk-text"><b>Web fetch</b><small>Read public pages</small></span>
-                  <input type="checkbox" name="capability" value="web">
-                </label>
-                <label class="toolkit-option" data-risk="public">
-                  <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5L5 21"/></svg></span>
-                  <span class="tk-text"><b>Image</b><small>Generate images</small></span>
-                  <input type="checkbox" name="capability" value="image">
-                </label>
-                <label class="toolkit-option" data-risk="private">
-                  <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/></svg></span>
-                  <span class="tk-text"><b>File reading</b><small>Read local files</small></span>
-                  <input type="checkbox" name="capability" value="files">
-                </label>
-                <label class="toolkit-option" data-risk="powerful">
-                  <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
-                  <span class="tk-text"><b>File editing</b><small>Create &amp; edit files</small></span>
-                  <input type="checkbox" name="capability" value="file-write">
-                </label>
-                <label class="toolkit-option" data-risk="powerful">
-                  <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><path d="M13 15h4"/></svg></span>
-                  <span class="tk-text"><b>Shell</b><small>Run local commands</small></span>
-                  <input type="checkbox" name="capability" value="shell">
-                </label>
-                <label class="toolkit-option" data-risk="powerful">
-                  <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 6.5h.01M11 6.5h.01"/><path d="M8 14l3 3 5-6"/></svg></span>
-                  <span class="tk-text"><b>Browser</b><small>Control local browser</small></span>
-                  <input type="checkbox" name="capability" value="browser">
-                </label>
+                <div class="capability-group" data-access="optional">
+                  <div class="capability-group-head">
+                    <h4><i aria-hidden="true"></i><span><b>Standard</b><small>- Invite code optional</small></span></h4>
+                  </div>
+                  <div class="toolkits-grid">
+                    <label class="toolkit-option" data-access="optional">
+                      <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.5 3.8 5.7 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.7-3.8-9S9.5 5.5 12 3z"/></svg></span>
+                      <span class="tk-text"><b>Web fetch</b><small>Read public pages</small></span>
+                      <input type="checkbox" name="capability" value="web">
+                    </label>
+                    <label class="toolkit-option" data-access="optional">
+                      <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5L5 21"/></svg></span>
+                      <span class="tk-text"><b>Image</b><small>Generate images</small></span>
+                      <input type="checkbox" name="capability" value="image">
+                    </label>
+                  </div>
+                </div>
+                <div class="capability-group" data-access="required">
+                  <div class="capability-group-head">
+                    <h4><i aria-hidden="true"></i><span><b>Protected</b><small>- Invite code required</small></span></h4>
+                  </div>
+                  <div class="toolkits-grid">
+                    <label class="toolkit-option" data-access="required">
+                      <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/></svg></span>
+                      <span class="tk-text"><b>File reading</b><small>Read local files</small></span>
+                      <input type="checkbox" name="capability" value="files">
+                    </label>
+                    <label class="toolkit-option" data-access="required">
+                      <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+                      <span class="tk-text"><b>File editing</b><small>Create &amp; edit files</small></span>
+                      <input type="checkbox" name="capability" value="file-write">
+                    </label>
+                    <label class="toolkit-option" data-access="required">
+                      <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><path d="M13 15h4"/></svg></span>
+                      <span class="tk-text"><b>Shell</b><small>Run local commands</small></span>
+                      <input type="checkbox" name="capability" value="shell">
+                    </label>
+                    <label class="toolkit-option" data-access="required">
+                      <span class="tk-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 6.5h.01M11 6.5h.01"/><path d="M8 14l3 3 5-6"/></svg></span>
+                      <span class="tk-text"><b>Browser</b><small>Control local browser</small></span>
+                      <input type="checkbox" name="capability" value="browser">
+                    </label>
+                  </div>
+                </div>
               </fieldset>
             </section>
 

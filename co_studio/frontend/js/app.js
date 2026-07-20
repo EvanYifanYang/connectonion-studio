@@ -922,8 +922,8 @@ const selectedCapabilities = () => [
 
 function customAccessPolicy() {
   const tier = Math.max(...selectedCapabilities().map((name) => CAPABILITY_RISK[name] || 0));
-  if (tier === 2) return { tier, trust: 'strict', inviteOnly: true, title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter this code once before using powerful capabilities.', note: 'This Agent can change local or external state. File changes and side-effecting shell commands may ask for approval; Browser control is protected at connection time.' };
-  if (tier === 1) return { tier, trust: 'careful', inviteOnly: true, title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter this code once before reading local files.', note: 'Approval is remembered for this device and this Agent only.' };
+  if (tier === 2) return { tier, trust: 'strict', inviteOnly: true, title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter your code once.', note: 'This Agent can change local or external state. File changes and side-effecting shell commands may ask for approval; Browser control is protected at connection time.' };
+  if (tier === 1) return { tier, trust: 'careful', inviteOnly: true, title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter your code once.', note: 'Approval is remembered for this device and this Agent only.' };
   if ($('#f-standard-access-invite').checked) return { tier, trust: 'careful', inviteOnly: true, title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter this code once before connecting.', note: 'Standard capabilities do not read or change local data. Approval is remembered for this device and this Agent only.' };
   return { tier, trust: 'open', inviteOnly: false, title: 'Open access', badge: 'Open', copy: 'Anyone with this Agent address can connect.', note: 'Standard capabilities do not read or change local data.' };
 }
@@ -940,7 +940,7 @@ function syncCustomAccess() {
   $('#f-custom-access-note').textContent = policy.note;
   const badge = $('#f-custom-access-badge');
   badge.textContent = policy.badge;
-  badge.className = `risk-badge ${policy.tier === 0 ? 'is-safe' : policy.tier === 1 ? 'is-careful' : 'is-strict'}`;
+  badge.className = `risk-badge ${policy.tier === 0 ? 'is-safe' : 'is-strict'}`;
   $('#f-custom-invite-wrap').hidden = !policy.inviteOnly;
   if (!wizardStacked && wizardStep === 4 && $('#app').classList.contains('is-creating')) paintWizard(true);
   return policy;
