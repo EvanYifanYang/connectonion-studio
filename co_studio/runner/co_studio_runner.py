@@ -6,6 +6,15 @@ import runpy
 import sys
 
 
+def _patch_scoped_trust() -> None:
+    """Route generated agents through Studio's per-agent trust-state adapter."""
+    import connectonion
+
+    from co_studio.scoped_trust import scope_host
+
+    connectonion.host = scope_host(connectonion.host)
+
+
 def _patch_get_ips() -> None:
     """Announce a few real IPv4s only (relay caps 10 endpoints) and never call the blocking ipify API."""
     import ifaddr
@@ -48,6 +57,10 @@ def main() -> None:
     """Patch announce.get_ips, then run the agent script as __main__ in this process."""
     if len(sys.argv) != 2:
         sys.exit("usage: co_studio_runner.py <agent.py>")
+    try:
+        _patch_scoped_trust()
+    except Exception as exc:  # noqa: BLE001 — surface compatibility failures in the run log
+        sys.exit(f"[co-studio] scoped trust setup failed: {exc!r}")
     try:
         _patch_get_ips()
     except Exception as exc:  # noqa: BLE001 — a framework refactor must not block launch
