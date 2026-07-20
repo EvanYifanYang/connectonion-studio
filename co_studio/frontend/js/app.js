@@ -537,8 +537,16 @@ function openSettingsModal({ inset = false } = {}) {
 function closeSettingsModal() {
   const app = $('#app');
   const wasInset = app.classList.contains('is-settings-inset');
-  app.classList.remove('is-settings', 'is-settings-inset');   // clear both, or the inset flag lingers on the next view
-  if (wasInset) setSettingsNav(false);                 // Agents becomes active again
+  app.classList.remove('is-settings');
+  if (wasInset) {
+    setSettingsNav(false);                             // Agents becomes active again
+    // Keep the inset flag through the 0.3s fade so the pane stays in the content column (left:244) and
+    // never expands full-width over the sidebar mid-fade (that "whole panel flashes" bug). Drop it once
+    // the pane is fully hidden — and only if Settings wasn't re-opened in the meantime.
+    setTimeout(() => { if (!app.classList.contains('is-settings')) app.classList.remove('is-settings-inset'); }, 380);
+  } else {
+    app.classList.remove('is-settings-inset');         // gate mode is full-screen anyway
+  }
   if (app.classList.contains('is-firstrun')) {   // bring "No agents yet" back to life
     const fr = $('#firstrun');
     fr.classList.remove('is-returning');
@@ -682,6 +690,7 @@ function renderLogs() {
 /** Select an agent: swap the live socket + console and populate the detail pane. */
 function selectLogAgent(slug) {
   if (state.logs.socket) { state.logs.socket.close(); state.logs.socket = null; }
+  clearInterval(state.logs.tilePoll); state.logs.tilePoll = null;   // stop any prior stat-tile poll
   state.logs.selected = slug;
   state.logs.lines = 0;
   $('#ld-console').replaceChildren();
@@ -696,6 +705,14 @@ function selectLogAgent(slug) {
   const summary = state.agents.find((a) => a.slug === slug);
   if (summary) fillDetailHead(summary);
   fetchLogTiles(slug);
+  // A just-Started agent is still booting, so tools/balance/endpoints may be empty on the first
+  // fetch (and nothing re-triggers it). Poll a few times so they fill in on their own — no need to
+  // leave the Logs view and come back.
+  let tileTries = 0;
+  state.logs.tilePoll = setInterval(() => {
+    if (state.logs.selected !== slug || ++tileTries >= 8) { clearInterval(state.logs.tilePoll); state.logs.tilePoll = null; return; }
+    fetchLogTiles(slug);
+  }, 2000);
 
   // one live socket at a time — the backend streams ONLY this run, from its first line
   state.logs.socket = logSocket(slug, appendLogLine, (connected) => {
@@ -756,17 +773,25 @@ async function revealLogsFolder() {
 
 function openLogsView() {
   const app = $('#app');
-  if (app.classList.contains('is-settings')) closeSettingsModal();
+  const fromSettings = app.classList.contains('is-settings');
   if (app.classList.contains('is-detail')) closeDrawer();
   renderLogs();
   app.classList.add('is-logs');
   setNav('logs');
+  // From Settings: let the opaque Logs pane fade in ON TOP first (one fade over a solid base, like the
+  // Agents/Logs switch — no grid flash). Then fade Settings out BEHIND it, keeping the inset flag so
+  // the pane never expands over the sidebar mid-fade; clear the flag only once it's fully hidden.
+  if (fromSettings) setTimeout(() => {
+    app.classList.remove('is-settings');
+    setTimeout(() => { if (!app.classList.contains('is-settings')) app.classList.remove('is-settings-inset'); }, 380);
+  }, 300);
 }
 
 function closeLogsView() {
   const app = $('#app');
   app.classList.remove('is-logs');
   if (state.logs.socket) { state.logs.socket.close(); state.logs.socket = null; }
+  clearInterval(state.logs.tilePoll); state.logs.tilePoll = null;   // stop the stat-tile poll
   state.logs.selected = null;
   $('#logs-list').replaceChildren();
   $('#ld-console').replaceChildren();
@@ -1127,6 +1152,11 @@ function openCreateModal(stacked = false) {
     setTimeout(() => openCreateModal(stacked), 300);
     return;
   }
+  if ($('#app').classList.contains('is-logs')) {   // same as Settings: crossfade back to Agents first, then the wizard
+    closeLogsView();
+    setTimeout(() => openCreateModal(stacked), 300);
+    return;
+  }
   $('#create-form').reset();
   $('#f-model-custom-wrap').hidden = true;
   syncTemplateFields();
@@ -1178,6 +1208,7 @@ function initCreateModal() {
     if (wizardStacked || wizardStep === 0) closeCreateModal();
     else moveWizard(-1);
   });
+  $('#wizard-back-top').addEventListener('click', closeCreateModal);   // pinned top-left Back (stacked wizard)
   $('#wizard-next').addEventListener('click', () => {
     if (validateStep(wizardStep)) moveWizard(1);
   });

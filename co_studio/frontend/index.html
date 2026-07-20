@@ -168,6 +168,10 @@
   <div id="create-view" hidden>
     <div class="wizard-inner" role="group" aria-labelledby="create-title">
       <div class="wizard-head">
+        <button type="button" id="wizard-back-top" class="wizard-back-top" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          Back
+        </button>
         <h2 id="create-title">New Agent</h2>
         <div class="wizard-dots" aria-hidden="true">
           <span class="wdot"></span><span class="wdot"></span><span class="wdot"></span><span class="wdot"></span><span class="wdot"></span>
@@ -358,6 +362,13 @@
 
   <!-- settings — swaps in on the same card (not a new layer); relocated into #app by boot() -->
   <div id="settings-view" hidden>
+    <header class="content-head settings-head">
+      <div class="head-titles">
+        <h1>Settings</h1>
+        <p class="page-subtitle">Appearance, storage, and environment</p>
+      </div>
+      <div class="head-actions"></div>
+    </header>
     <button id="settings-close" class="firstrun-gear" title="Close settings" aria-label="Close settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
@@ -438,7 +449,7 @@
                  autocomplete="off" spellcheck="false" aria-label="Search running agents">
         </div>
         <div id="logs-list" class="logs-list" role="listbox" aria-label="Running agents"></div>
-        <p id="logs-empty" class="logs-empty" hidden>No running agents.<br>Press <b>Start</b> on an agent to stream its live logs here.</p>
+        <p id="logs-empty" class="logs-empty" hidden>No running agents.</p>
       </aside>
 
       <!-- detail: the selected agent -->
