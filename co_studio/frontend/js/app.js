@@ -239,7 +239,7 @@ function updateCard(card, agent) {
   nameEl.title = agent.name;
   $('.state-word', card).textContent = capitalize(agent.state);
   $('.port-val', card).textContent = agent.port;
-  $('.access-val', card).textContent = agent.preset === 'co-ai' ? 'Invite only' : capitalize(agent.trust || 'open');
+  $('.access-val', card).textContent = accessLabel(agent);
   $('.addr-short', card).textContent = shortAddr(agent.address);
   const modelEl = $('.model-val', card);
   modelEl.textContent = agent.model;
@@ -910,6 +910,11 @@ const CAPABILITY_LABEL = {
   utility: 'Utility', web: 'Web fetch', image: 'Image', files: 'File reading',
   'file-write': 'File editing', shell: 'Shell', browser: 'Browser',
 };
+function accessLabel(agent) {
+  return agent?.preset === 'co-ai' || agent?.trust === 'careful' || agent?.trust === 'strict'
+    ? 'Invite only'
+    : 'Open';
+}
 const selectedCapabilities = () => [
   'utility',
   ...document.querySelectorAll('#create-form input[name="capability"]:checked'),
@@ -917,9 +922,9 @@ const selectedCapabilities = () => [
 
 function customAccessPolicy() {
   const tier = Math.max(...selectedCapabilities().map((name) => CAPABILITY_RISK[name] || 0));
-  if (tier === 2) return { tier, trust: 'strict', title: 'Strict access', badge: 'Strict', copy: 'Dangerous capabilities require invite-only access.', note: 'File editing, Shell, and Browser can change local or external state. Tool approvals still apply.' };
-  if (tier === 1) return { tier, trust: 'careful', title: 'Careful access', badge: 'Careful', copy: 'Local file reading requires an invite code.', note: 'Only clients admitted with this code can read or search local files.' };
-  return { tier, trust: 'open', title: 'Open access', badge: 'Open', copy: 'Selected capabilities are safe, so anyone can connect.', note: 'Access is set automatically from the highest-risk capability you selected.' };
+  if (tier === 2) return { tier, trust: 'strict', title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter this code once before using powerful capabilities.', note: 'This Agent can change local or external state. File changes and side-effecting shell commands may ask for approval; Browser control is protected at connection time.' };
+  if (tier === 1) return { tier, trust: 'careful', title: 'Invite-only access', badge: 'Invite only', copy: 'New devices enter this code once before reading local files.', note: 'Approval is remembered for this device and this Agent only.' };
+  return { tier, trust: 'open', title: 'Open access', badge: 'Open', copy: 'Anyone with this Agent address can connect.', note: 'Public capabilities do not read or change local data.' };
 }
 
 function syncCustomAccess() {
@@ -1327,7 +1332,7 @@ function renderDrawerFields(detail) {
     ['Capabilities', detail.preset === 'co-ai'
       ? 'Full coding toolkit'
       : (detail.capabilities || detail.toolkits || []).map((name) => CAPABILITY_LABEL[name] || name).join(' · ') || '—'],
-    ['Access', detail.preset === 'co-ai' ? 'Invite only' : capitalize(detail.trust || 'open')],
+    ['Access', accessLabel(detail)],
   ];
   if (detail.invite_code) {
     configuration.push(['Invite code', copyableValue(detail.invite_code)]);
