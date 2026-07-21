@@ -38,6 +38,8 @@ struct WebView: NSViewRepresentable {
           installUpdate: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'installUpdate' }); },
           dismissUpdate: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'dismissUpdate' }); },
           checkForUpdates: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'checkForUpdates' }); },
+          syncUpdate: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'syncUpdate' }); },
+          cancelUpdate: function () { window.webkit.messageHandlers.coStudio.postMessage({ action: 'cancelUpdate' }); },
           setAppearance: function (appearance) { window.webkit.messageHandlers.coStudio.postMessage({ action: 'setAppearance', appearance: appearance }); },
           copyText: function (text) { window.webkit.messageHandlers.coStudio.postMessage({ action: 'copyText', text: text }); }
         };
@@ -95,6 +97,8 @@ struct WebView: NSViewRepresentable {
             case "installUpdate":    WebUpdater.shared.installAndRelaunch()
             case "dismissUpdate":    WebUpdater.shared.dismiss()
             case "checkForUpdates":  WebUpdater.shared.checkForUpdates()
+            case "syncUpdate":       WebUpdater.shared.syncState()
+            case "cancelUpdate":     WebUpdater.shared.cancelActiveUpdate()
             case "copyText":
                 guard let text = body["text"] as? String else { return }
                 NSPasteboard.general.clearContents()
@@ -173,6 +177,14 @@ final class WebUpdater: NSObject, SPUUserDriver {
     /// The most recent "should I proceed?" reply from Sparkle — fired when the web clicks Relaunch.
     private var pendingReply: ((SPUUserUpdateChoice) -> Void)?
     private var latestVersion = ""
+    /// Last status pushed to the web; replayed via syncState() when the page loads after a launch check.
+    private var lastStatus = "idle"
+    /// Download accounting so the web can show a real progress bar during the blocking "updating" cover.
+    private var expectedLength: UInt64 = 0
+    private var receivedLength: UInt64 = 0
+    /// Sparkle's cancellation block for the in-flight check/download — lets the web abort a stalled
+    /// download (e.g. no network) so it never hangs the blocking cover at 0%.
+    private var activeCancellation: (() -> Void)?
     /// True once the user hit "Relaunch to update" — makes download → install → relaunch one action.
     private var committed = false
 
@@ -186,6 +198,12 @@ final class WebUpdater: NSObject, SPUUserDriver {
         do {
             try u.start()
             updater = u
+            // The scheduler alone doesn't surface anything promptly (default interval + no first-launch
+            // check), so force a background check immediately after start() — Sparkle's documented way to
+            // "check on every app launch" (automatic checks are already enabled via SUEnableAutomaticChecks
+            // in Info.plist; don't re-set that property here or it resets the cycle and drops this check).
+            // Result is pushed to the web, or replayed via syncState() once the page registers its handler.
+            u.checkForUpdatesInBackground()
         } catch {
             NSLog("[Sparkle] startUpdater failed: \(error.localizedDescription)")
         }
@@ -196,8 +214,15 @@ final class WebUpdater: NSObject, SPUUserDriver {
     /// Web clicked "Relaunch to update".
     func installAndRelaunch() {
         committed = true
-        pendingReply?(.install)
-        pendingReply = nil
+        if let reply = pendingReply {
+            reply(.install)
+            pendingReply = nil
+        } else if let u = updater, !u.sessionInProgress {
+            // No live reply — a previously dismissed/finished update. Re-check, but ONLY when no session
+            // is in progress: firing while a prior (e.g. failed) session is still tearing down silently
+            // no-ops and hangs the cover at 0%. `committed` stays set so showUpdateFound goes straight in.
+            u.checkForUpdatesInBackground()
+        }
     }
 
     /// Web dismissed the update.
@@ -209,12 +234,18 @@ final class WebUpdater: NSObject, SPUUserDriver {
 
     // MARK: push state → web
 
-    private func push(_ status: String, version: String? = nil) {
-        let payload: [String: String] = ["status": status, "version": version ?? latestVersion]
+    private func push(_ status: String, version: String? = nil, progress: Double? = nil) {
+        lastStatus = status
+        var payload: [String: Any] = ["status": status, "version": version ?? latestVersion]
+        if let progress = progress { payload["progress"] = progress }
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else { return }
         webView?.evaluateJavaScript("window.__coStudioUpdate && window.__coStudioUpdate(\(json))", completionHandler: nil)
     }
+
+    /// Re-push the last status — the web calls this on load so an update found before the page was ready
+    /// (the launch race) still reaches the banner.
+    func syncState() { push(lastStatus) }
 
     // MARK: SPUUserDriver
 
@@ -222,33 +253,57 @@ final class WebUpdater: NSObject, SPUUserDriver {
         reply(SUUpdatePermissionResponse(automaticUpdateChecks: true, sendSystemProfile: false))
     }
 
-    func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {}
+    func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {
+        activeCancellation = cancellation
+        push("checking")
+    }
+
+    /// Web asks to abort a stalled check/download (its stall watchdog fired). Cancelling makes Sparkle
+    /// tear the session down (→ dismissUpdateInstallation → "idle"), so the web can show a clean error.
+    func cancelActiveUpdate() {
+        activeCancellation?()
+        activeCancellation = nil
+    }
 
     func showUpdateFound(with appcastItem: SUAppcastItem, state: SPUUserUpdateState, reply: @escaping (SPUUserUpdateChoice) -> Void) {
         latestVersion = appcastItem.displayVersionString
+        if committed {
+            reply(.install)   // already committed (a retry after a failed download) — go straight to it
+            return
+        }
         pendingReply = reply
-        // If Sparkle already downloaded it in the background, the web can offer "Relaunch to update"
-        // straight away; otherwise the click downloads first, then relaunches.
-        push(state.stage == .downloaded ? "readyToRelaunch" : "available")
+        // If Sparkle already downloaded/extracted it (e.g. resuming after a relaunch), the web can offer
+        // "Relaunch to update" straight away; otherwise the click downloads first, then relaunches.
+        push(state.stage == .downloaded || state.stage == .installing ? "readyToRelaunch" : "available")
     }
 
     func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {}
 
     func showUpdateReleaseNotesFailedToDownloadWithError(_ error: Error) {}
 
-    func showUpdateNotFoundWithError(_ error: Error) async { push("none") }
+    func showUpdateNotFoundWithError(_ error: Error) async { committed = false; push("none") }
 
-    func showUpdaterError(_ error: Error) async { push("error") }
+    func showUpdaterError(_ error: Error) async { committed = false; push("error") }
 
-    func showDownloadInitiated(cancellation: @escaping () -> Void) { push("downloading") }
+    func showDownloadInitiated(cancellation: @escaping () -> Void) {
+        activeCancellation = cancellation
+        expectedLength = 0; receivedLength = 0
+        push("downloading")
+    }
 
-    func showDownloadDidReceiveExpectedContentLength(_ expectedContentLength: UInt64) {}
+    func showDownloadDidReceiveExpectedContentLength(_ expectedContentLength: UInt64) {
+        expectedLength = expectedContentLength; receivedLength = 0
+    }
 
-    func showDownloadDidReceiveData(ofLength length: UInt64) {}
+    func showDownloadDidReceiveData(ofLength length: UInt64) {
+        receivedLength += length
+        guard expectedLength > 0 else { return }
+        push("downloading", progress: Double(receivedLength) / Double(expectedLength))
+    }
 
     func showDownloadDidStartExtractingUpdate() { push("installing") }
 
-    func showExtractionReceivedProgress(_ progress: Double) {}
+    func showExtractionReceivedProgress(_ progress: Double) { push("installing") }   // feed the web's stall watchdog during extraction
 
     func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) {
         if committed {
@@ -268,6 +323,8 @@ final class WebUpdater: NSObject, SPUUserDriver {
     func dismissUpdateInstallation() {
         committed = false
         pendingReply = nil
+        activeCancellation = nil
+        expectedLength = 0; receivedLength = 0
         push("idle")
     }
 }

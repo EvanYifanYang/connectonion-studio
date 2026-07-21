@@ -1731,6 +1731,10 @@ const REPO_URL = 'https://github.com/EvanYifanYang/connectonion-studio';
 let updateInfo = null;   // last /setup/update payload, so the modal renders without refetching
 const IS_APP = !!window.__coStudioNative;   // running inside the native macOS app (Sparkle drives updates)
 let appUpdate = null;   // latest Sparkle state in app mode: { version, status }
+let manualChecking = false;   // a Settings "Check now" is in flight (drives its button feedback)
+let manualCheckTimer = null;  // fallback reset if no Sparkle status comes back
+let updateRetryTimer = null;  // fallback to re-enable "Try again" once a failed session has torn down
+let updateStallTimer = null;  // watchdog: abort a download that makes no progress (no network / hung)
 
 async function refreshUpdateBanner() {
   const banner = $('#update-banner');
@@ -1752,7 +1756,7 @@ function openUpdateModal() {
     $('#um-current').textContent = '';
     $('#um-latest').textContent = appUpdate.version ? `v${appUpdate.version}` : '';
     $('#um-notes').href = appUpdate.version ? `${REPO_URL}/releases/tag/v${appUpdate.version}` : REPO_URL;
-    reflectAppStatus(appUpdate.status);
+    setUpdateMode('ready');
   } else {
     const info = updateInfo;
     if (!info || !info.latest) return;
@@ -1763,49 +1767,121 @@ function openUpdateModal() {
     $('#um-upgrade-cmd').textContent = info.upgrade_command || 'pipx upgrade connectonion-studio';
     $('#um-notes').href = `${REPO_URL}/releases/tag/v${info.latest}`;
   }
-  modal.classList.remove('is-closing');   // clear a stale exit state before re-opening
+  modal.classList.remove('is-closing', 'is-updating');   // clean slate on open
   modal.hidden = false;
 }
 
 // macOS app: Sparkle pushes update state here (via the WebView bridge) to drive the banner + modal.
+// The modal is a strict 3-state machine (ready / updating / error) — see setUpdateMode.
 function onSparkleUpdate(payload) {
   const banner = $('#update-banner');
   if (!banner) return;
+  const modal = $('#modal-update');
   const status = (payload && payload.status) || 'idle';
-  if (status === 'available' || status === 'readyToRelaunch') {
+  const mode = modal.classList.contains('is-updating') ? 'updating'
+             : modal.classList.contains('is-update-error') ? 'error' : 'ready';
+  if (status === 'checking') {
+    // a check is in flight — leave the banner + modal untouched
+  } else if (status === 'available' || status === 'readyToRelaunch') {
     appUpdate = { version: (payload && payload.version) || '', status };
     if (appUpdate.version) $('#update-ver').textContent = `v${appUpdate.version}`;
     banner.hidden = false;
+    if (!modal.hidden) setUpdateMode('ready');   // a "Try again" re-check re-found it → back to ready
   } else if (status === 'downloading' || status === 'installing') {
     if (appUpdate) appUpdate.status = status;
-    reflectAppStatus(status);
-  } else {   // none / idle / error
-    appUpdate = null;
-    banner.hidden = true;
-    if (!$('#modal-update').hidden) closeUpdateModal();
+    if (!modal.hidden) { setUpdateMode('updating'); updateProgress(status, payload && payload.progress); }
+  } else {   // terminal: error / idle / none
+    if (mode === 'updating') {
+      // interrupted mid-update → error state. Retry is only safe once the session tore down ('idle').
+      setUpdateMode('error', { canRetry: status === 'idle' });
+    } else if (mode === 'error') {
+      // a "Try again" re-check ended — restore the retryable error state (idle = torn down → retry now;
+      // error/none = it failed again → disable briefly, then the timer re-enables)
+      setUpdateMode('error', { canRetry: status === 'idle' });
+    } else if (status === 'none') {
+      // genuinely no update (not mid-update) — clear the banner + modal
+      appUpdate = null; banner.hidden = true;
+      if (!modal.hidden) closeUpdateModal();
+    }
+    // error / idle in ready mode: no-op — keep the banner (the update is still available)
+  }
+  reflectManualCheck(status);   // resolve the Settings "Check now" button, if one is running
+}
+
+// The one place that sets the app-mode update modal's state. ready / updating / error are exclusive.
+function setUpdateMode(mode, opts) {
+  opts = opts || {};
+  const modal = $('#modal-update');
+  clearTimeout(updateRetryTimer);
+  clearTimeout(updateStallTimer);
+  modal.classList.toggle('is-updating', mode === 'updating');
+  modal.classList.toggle('is-update-error', mode === 'error');
+  const body = $('#um-app-text'), btn = $('#um-relaunch');
+  if (mode === 'ready') {
+    if (body) body.textContent = 'A new version is ready. Relaunch to finish updating.';
+    if (btn) { btn.textContent = 'Relaunch to update'; btn.disabled = false; }
+  } else if (mode === 'updating') {
+    if (opts.reset) {   // entering the cover from a click — zero the bar (not on every progress tick)
+      $('#um-prog-status').textContent = 'Preparing the update';
+      $('#um-prog-fill').style.width = '0%';
+      $('#um-prog-pct').textContent = '';
+    }
+    updateStallTimer = setTimeout(onUpdateStall, 12000);   // re-armed on every updating tick; fires only if truly stuck
+  } else if (mode === 'error') {
+    if (body) body.textContent = "The update didn't finish. Check your connection and try again.";
+    if (btn) { btn.textContent = 'Try again'; btn.disabled = !opts.canRetry; }
+    // fallback: if 'idle' never arrives, still let the user retry once the teardown has surely finished
+    if (!opts.canRetry) updateRetryTimer = setTimeout(() => { const b = $('#um-relaunch'); if (b) b.disabled = false; }, 2500);
   }
 }
 
-// Reflect the current Sparkle stage in the app-mode modal body + Relaunch button.
-function reflectAppStatus(status) {
-  const text = $('#um-app-text'), btn = $('#um-relaunch');
-  if (!text || !btn) return;
-  if (status === 'downloading') {
-    text.textContent = 'Downloading the update...';
-    btn.textContent = 'Downloading...'; btn.disabled = true;
-  } else if (status === 'installing') {
-    text.textContent = 'Installing the update...';
-    btn.textContent = 'Installing...'; btn.disabled = true;
-  } else {
-    text.textContent = 'A new version is ready. Relaunch to finish updating.';
-    btn.textContent = 'Relaunch to update'; btn.disabled = false;
+// Drive the progress bar during the blocking "updating" cover.
+function updateProgress(status, progress) {
+  const head = $('#um-prog-status'), fill = $('#um-prog-fill'), pct = $('#um-prog-pct');
+  const hasP = typeof progress === 'number' && progress >= 0;
+  if (head) head.textContent = status === 'installing' ? 'Installing the update'
+                             : (hasP ? 'Downloading the update' : 'Preparing the update');
+  if (hasP) {
+    const w = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+    if (fill) fill.style.width = w + '%';
+    if (pct) pct.textContent = w + '%';
+  } else if (status === 'installing') {   // extract/install with no number — near-done, don't reset to 0
+    if (fill) fill.style.width = '100%';
+    if (pct) pct.textContent = '';
   }
+}
+
+// Watchdog: the blocking cover made no progress for 12s (no network / hung download). Abort natively so
+// Sparkle tears the session down (→ "idle"/error), with a fallback that forces the error state.
+function onUpdateStall() {
+  const modal = $('#modal-update');
+  if (!modal.classList.contains('is-updating')) return;
+  if (window.__coStudio && window.__coStudio.cancelUpdate) window.__coStudio.cancelUpdate();
+  setTimeout(() => { if ($('#modal-update').classList.contains('is-updating')) setUpdateMode('error', { canRetry: true }); }, 3000);
+}
+
+// Drive the Settings "Check now" button/label from the Sparkle status, only while a manual check runs.
+function reflectManualCheck(status) {
+  if (!manualChecking) return;
+  const label = $('#settings-update-status'), btn = $('#settings-check-update');
+  if (status === 'checking') { if (label) label.textContent = 'Checking...'; return; }
+  const done = (msg) => {
+    clearTimeout(manualCheckTimer);
+    manualChecking = false;
+    if (label) label.textContent = msg;
+    if (btn) { btn.disabled = false; btn.textContent = 'Check now'; }
+  };
+  if (status === 'available' || status === 'readyToRelaunch') done('Update available');
+  else if (status === 'error') done('Check failed — try again');
+  else if (status === 'none' || status === 'idle') done("You're up to date");
+  // downloading / installing: an update is already in progress; the banner/modal drive it
 }
 
 // Play the fade + un-blur exit before hiding, so the background clears gradually on close.
 function closeUpdateModal() {
   const modal = $('#modal-update');
   if (modal.hidden || modal.classList.contains('is-closing')) return;
+  if (modal.classList.contains('is-updating')) return;   // mid-update: non-dismissible, nothing the user can do
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     modal.hidden = true;   // no exit animation to await under reduced motion
     return;
@@ -1833,7 +1909,40 @@ function initUpdateCheck() {
   if (IS_APP) {
     // macOS app: Sparkle drives updates, no PyPI polling. The native bridge calls window.__coStudioUpdate.
     window.__coStudioUpdate = onSparkleUpdate;
-    $('#um-relaunch').addEventListener('click', () => { window.__coStudio && window.__coStudio.installUpdate(); });
+    $('#um-relaunch').addEventListener('click', () => {
+      const modal = $('#modal-update');
+      if (modal.classList.contains('is-update-error')) {
+        // "Try again": re-check for a fresh Sparkle session — the failed one has torn down, so this is safe
+        $('#um-relaunch').disabled = true;
+        $('#um-app-text').textContent = 'Checking again...';
+        if (window.__coStudio && window.__coStudio.checkForUpdates) window.__coStudio.checkForUpdates();
+        return;
+      }
+      if (!(window.__coStudio && window.__coStudio.installUpdate)) return;
+      setUpdateMode('updating', { reset: true });   // lock into the blocking cover (no Close, no going back)
+      window.__coStudio.installUpdate();
+    });
+    // The launch check runs natively (WebUpdater.start → checkForUpdatesInBackground); pull whatever it
+    // already found, in case it resolved before this handler was registered (the launch race).
+    if (window.__coStudio && window.__coStudio.syncUpdate) window.__coStudio.syncUpdate();
+    // Settings → Software Update: a manual "Check now" (the app has no menu bar to host it).
+    const upGroup = $('#settings-update-group');
+    if (upGroup) upGroup.hidden = false;
+    const checkBtn = $('#settings-check-update');
+    if (checkBtn) checkBtn.addEventListener('click', () => {
+      if (manualChecking || !(window.__coStudio && window.__coStudio.checkForUpdates)) return;
+      manualChecking = true;
+      const label = $('#settings-update-status');
+      if (label) label.textContent = 'Checking...';
+      checkBtn.disabled = true; checkBtn.textContent = 'Checking...';
+      clearTimeout(manualCheckTimer);
+      manualCheckTimer = setTimeout(() => {   // no status came back — reset so the button isn't stuck
+        manualChecking = false;
+        if (label) label.textContent = '';
+        checkBtn.disabled = false; checkBtn.textContent = 'Check now';
+      }, 12000);
+      window.__coStudio.checkForUpdates();
+    });
   } else {
     // CLI (pip/pipx): poll PyPI and show the upgrade-command modal.
     $('#um-copy-upgrade').addEventListener('click', (e) => copyWithFeedback(e.currentTarget, $('#um-upgrade-cmd').textContent));

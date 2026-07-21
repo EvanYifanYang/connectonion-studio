@@ -8,5 +8,7 @@
 	<string>UPPgi7SidwDBhzTfWp888ItbYHTZkWrQ/iSnN9EwWRM=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>3600</integer>
 </dict>
 </plist>
