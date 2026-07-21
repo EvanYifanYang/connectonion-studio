@@ -3,6 +3,16 @@
     <channel>
         <title>ConnectOnionStudio</title>
         <item>
+            <title>0.1.7</title>
+            <pubDate>Tue, 21 Jul 2026 17:38:06 +1000</pubDate>
+            <link>https://github.com/EvanYifanYang/connectonion-studio</link>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.1.7</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.7</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/EvanYifanYang/connectonion-studio/releases/download/macos-v0.1.7/ConnectOnionStudio-0.1.7.dmg" length="139068534" type="application/octet-stream" sparkle:edSignature="e9HnZYDYEnvkkTKEMu1qu2feARi8dPqyGE1mQsG8x7/J6c3N5UU85ifhgWDaxPHiJWWq+qFvfwUa48tY1+e8BA=="/>
+        </item>
+        <item>
             <title>0.1.6</title>
             <pubDate>Mon, 20 Jul 2026 21:46:16 +1000</pubDate>
             <link>https://github.com/EvanYifanYang/connectonion-studio</link>
