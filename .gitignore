@@ -25,6 +25,8 @@ xcuserdata/
 *.moved-aside
 # xcodebuild -derivedDataPath output (macos/ConnectOnionStudio/)
 build-release/
+build-local/
+*.profraw
 
 # ── 内部设计 & 开发思考文档：只留本地，永不发布 ──
 docs/
