@@ -698,7 +698,7 @@ body.shell-ready #app { transition: opacity 0.42s ease, transform 0.5s cubic-bez
 }
 
 /* update-available modal: upgrade steps */
-.update-modal-card { width: min(420px, 100%); padding: 14px 20px; }
+.update-modal-card { width: min(420px, 100%); padding: 18px; }
 .modal-card.update-modal-card { background: var(--elevated); }
 .update-modal-head { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 15px; }
 .update-modal-icon { flex: none; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: inline-grid; place-items: center; }
@@ -727,10 +727,26 @@ body.shell-ready #app { transition: opacity 0.42s ease, transform 0.5s cubic-bez
 .um-notes { font-size: 12.5px; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
 .um-notes:hover { text-decoration: underline; }
 .um-notes svg { width: 14px; height: 14px; }
-#um-close { padding: 4px 14px; }
 .um-app-body { display: none; }
 .um-app-text { font-size: 13px; color: var(--ink-2); margin: 0; line-height: 1.55; }
 .um-foot-btns { display: inline-flex; align-items: center; gap: 8px; }
+/* the update-modal footer buttons run tall from the inherited line-height — compact them a touch */
+.um-foot-btns .btn { padding: 6px 14px; font-size: 12.5px; line-height: 1.3; }
+
+/* ---- update modal: blocking "updating" state with a real progress bar ---- */
+/* once "Relaunch to update" is pressed the modal becomes non-dismissible (no X / Close / body / notes)
+   and shows only progress — the user can't touch anything and the app restarts itself when done. */
+.um-progress { display: none; }
+#modal-update.is-updating .um-progress { display: block; margin-top: 2px; }
+#modal-update.is-app.is-updating .um-app-body,   /* .is-app raises specificity to beat `.is-app .um-app-body { display:block }` */
+#modal-update.is-updating .update-modal-foot,
+#modal-update.is-updating #um-close-x { display: none; }
+.um-prog-head { font-size: 13px; font-weight: 500; color: var(--ink); margin-bottom: 11px; }
+.um-prog-track { height: 6px; border-radius: 999px; background: var(--grouped); overflow: hidden; }
+.um-prog-fill { height: 100%; width: 0%; border-radius: 999px; background: var(--accent); transition: width 0.3s ease; }
+.um-prog-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 9px; }
+.um-prog-pct { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.um-prog-note { font-size: 11.5px; color: var(--ink-3); }
 #um-relaunch { display: none; }
 #modal-update.is-app .um-cli { display: none; }
 #modal-update.is-app .um-app-body { display: block; }

@@ -420,6 +420,14 @@
           <div class="set-row"><span class="k">URL</span><span class="v mono" id="set-url">—</span></div>
           <div class="set-row"><span class="k">Studio version</span><span class="v mono" id="set-ver">—</span></div>
         </div>
+        <div class="settings-group" id="settings-update-group" hidden>
+          <h3>Software Update</h3>
+          <div class="set-row">
+            <span class="k">ConnectOnion Studio</span>
+            <span class="v" id="settings-update-status">Checks automatically on launch</span>
+            <button id="settings-check-update" type="button" class="btn btn-outline btn-sm">Check now</button>
+          </div>
+        </div>
         <div class="settings-group">
           <h3>About</h3>
           <p class="set-about">A local cockpit to build, run, and test agents with <b>ConnectOnion</b>, the open-source Python agent framework. <a href="https://github.com/EvanYifanYang/connectonion-studio" target="_blank" rel="noopener">Studio on GitHub</a> · <a href="https://github.com/openonion/connectonion" target="_blank" rel="noopener">ConnectOnion on GitHub</a></p>
@@ -561,8 +569,17 @@
         </a>
         <span class="um-foot-btns">
           <button type="button" id="um-relaunch" class="btn btn-primary btn-sm">Relaunch to update</button>
-          <button type="button" id="um-close" class="btn btn-sm">Close</button>
+          <button type="button" id="um-close" class="btn btn-outline btn-sm">Close</button>
         </span>
+      </div>
+
+      <div class="um-progress" aria-hidden="true">
+        <div class="um-prog-head" id="um-prog-status">Preparing the update</div>
+        <div class="um-prog-track"><div class="um-prog-fill" id="um-prog-fill"></div></div>
+        <div class="um-prog-foot">
+          <span class="um-prog-pct" id="um-prog-pct"></span>
+          <span class="um-prog-note">The app will restart automatically.</span>
+        </div>
       </div>
     </div>
   </div>
